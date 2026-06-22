@@ -1,0 +1,60 @@
+# KiCad, project-local and generated files. See https://kicad.org/help/file-formats/
+#
+# Tracked (NOT ignored): *.kicad_pro, *.kicad_sch, *.kicad_pcb, fp-lib-table, sym-lib-table,
+# and libs/ (project symbols/footprints/3d models). These are the design source.
+
+# Per-user project-local state (window/layer/zoom, not shared)
+*.kicad_prl
+
+# Auto-backups (KiCad writes <project>-backups/*.zip) + manual design-file snapshot zips
+# (scoped to .kicad_* so the fab-output zip policy below stays unaffected)
+*-backups/
+*.kicad_pcb.zip
+*.kicad_sch.zip
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*.sch-bak
+*.bak
+*.bck
+*.000
+
+# Auto-save / lock / temp
+_autosave-*
+\#auto_saved_files#
+~*.lck
+*.tmp
+*~
+
+# Caches
+fp-info-cache
+
+# Generated exports (regenerate from the design, not source of truth)
+*.net
+*.dsn
+*.ses
+*.xml
+*.csv
+# 3D model exports from KiCad (regenerate from the design, not source of truth)
+*.stl
+*.step
+*.stp
+*.wrl
+*.3mf
+# The jack plug is design source, not a KiCad export, so keep its mesh tracked.
+!bt-nes-advantage-jack-plug/bt-nes-advantage-jack-plug.stl
+# Project library 3D models under libs/ are design source, keep them tracked.
+!bt-nes-advantage-pcb/libs/3dmodels/*
+
+# Editor local history (VS Code "Local History" extension)
+.history/
+
+# Fab / production outputs, uncomment to ignore if you don't version them
+# (leave these tracked unless you change that policy)
+# gerbers/
+# production/
+# *.gbr
+# *.drl
+# *-gerber*.zip
+
+# PCBWay plugin export folders (gerbers/BOM/positions it generates next to the board)
+* (Copy *).kicad_pcb/

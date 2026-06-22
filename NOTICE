@@ -1,0 +1,12 @@
+Bluetooth NES Advantage
+Copyright 2026 Aaron Perkins
+
+Firmware and software (firmware/, web/, tools/) are licensed under the MIT
+License (see LICENSE). Hardware design files (hardware/) are licensed under
+CERN-OHL-P-2.0 and documentation (docs/) under CC-BY-4.0. See LICENSING.md for
+the full map.
+
+This product bundles the following third-party component:
+
+  cJSON - Copyright (c) 2009-2017 Dave Gamble and cJSON contributors,
+  licensed under the MIT License. See firmware/components/cjson/cJSON.c.

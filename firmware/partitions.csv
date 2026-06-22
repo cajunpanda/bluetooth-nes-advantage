@@ -1,0 +1,10 @@
+# Dual-mode Bluedroid (Classic + BLE) + BLE OTA. Two app slots so firmware can be updated
+# over-the-air (esp_ota) from the BLE web config page; otadata records the active slot.
+# The full dual-mode image is ~0.9 MB, so 1.75 MB slots leave generous headroom in a 4 MB WROOM-32E.
+# nvs keeps its original offset/size, so existing bonds + settings survive the table change.
+# Name,     Type, SubType,  Offset,    Size
+nvs,        data, nvs,      0x9000,    0x6000
+otadata,    data, ota,      0xf000,    0x2000
+phy_init,   data, phy,      0x11000,   0x1000
+ota_0,      app,  ota_0,    0x20000,   0x1c0000
+ota_1,      app,  ota_1,    0x1e0000,  0x1c0000

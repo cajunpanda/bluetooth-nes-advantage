@@ -1,0 +1,64 @@
+# Indicative defaults, reconcile against your ESP-IDF version with `idf.py menuconfig`.
+# Kconfig key names drift between IDF releases; treat this as a starting point.
+# Toolchain in use: ESP-IDF v6.0.1 (PlatformIO framework-espidf).
+
+# --- Target ---
+CONFIG_IDF_TARGET="esp32"
+
+# --- Bluetooth: dual-mode ---
+# The controller is compiled BTDM (both BR/EDR and BLE) so the firmware can bring up either radio
+# at boot from the NVS transport setting (Classic Switch Pro in bt_pro or BLE gamepad in bt_ble),
+# one radio at a time: the unused half's controller RAM is released at runtime in each transport's
+# init().
+CONFIG_BT_ENABLED=y
+CONFIG_BT_BLUEDROID_ENABLED=y
+CONFIG_BTDM_CTRL_MODE_BTDM=y          # controller supports both BR/EDR and BLE
+CONFIG_BT_CLASSIC_ENABLED=y
+CONFIG_BT_BLE_ENABLED=y
+# Classic HID device profile + SDP (Switch reads VID/PID via the Device ID record).
+CONFIG_BT_HID_ENABLED=y
+CONFIG_BT_HID_DEVICE_ENABLED=y
+CONFIG_BT_SDP_COMMON_ENABLED=y
+# Secure Simple Pairing "just works" (no IO capability), so the Switch pairs without a PIN.
+CONFIG_BT_SSP_ENABLED=y
+# BLE GATT server + SMP bonding for the BLE HID transport (bt_ble).
+CONFIG_BT_GATTS_ENABLE=y
+CONFIG_BT_BLE_SMP_ENABLE=y
+
+# --- Power management: off during play ---
+# CPU PM + tickless idle + BT modem sleep all push the ACL link into sniff mode. During the
+# Switch handshake that causes rapid sniff/unsniff churn (our 60Hz 0x30 stream fights the sniff
+# requests) which tears the connection down before the handshake finishes. Keep the radio fully
+# active during play; deep sleep is handled separately by the ULP path.
+CONFIG_PM_ENABLE=n
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=n
+CONFIG_BTDM_CTRL_MODEM_SLEEP=n
+
+# --- Input responsiveness: full clock + 1 kHz tick ---
+# Input lag is gated by how often app_main can re-poll the 4021. The default 100 Hz FreeRTOS tick
+# floors vTaskDelay() at 10 ms, so the loop samples every 10 ms no matter what we ask for (the
+# 4021 read itself is only ~128 us). A 1 kHz tick lets the loop poll at ~2 ms, cutting the average
+# sampling latency from ~5 ms to ~1 ms. Run the CPU at its full 240 MHz (default is 160) for the
+# tightest, least-jittery compute between polls. All firmware delays use pdMS_TO_TICKS(), so they
+# rescale automatically; the only cost is a slightly higher tick-ISR rate (negligible, and the
+# radio is already fully active during play).
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
+CONFIG_FREERTOS_HZ=1000
+
+# --- ULP-FSM coprocessor (sleep-time 4021 polling) ---
+CONFIG_ULP_COPROC_ENABLED=y
+CONFIG_ULP_COPROC_TYPE_FSM=y
+CONFIG_ULP_COPROC_RESERVE_MEM=1024
+
+# --- Large app partition for the BT stack ---
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# --- 4 MB flash: the dual-OTA table (ota_0/ota_1 + otadata) spans ~3.6 MB; the WROOM-32E is >=4 MB.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
+
+# --- BLE OTA rollback/verify: keep it simple, accept a new app as valid on first boot (no app
+# self-test handshake). esp_ota_set_boot_partition + reboot is enough for this device.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=n

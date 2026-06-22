@@ -1,0 +1,43 @@
+# --- Firmware (ESP-IDF / PlatformIO) ---
+firmware/build/
+firmware/.pio/
+firmware/managed_components/
+firmware/sdkconfig
+firmware/sdkconfig.*
+!firmware/sdkconfig.defaults
+firmware/sdkconfig.old
+firmware/dependencies.lock
+
+# --- KiCad ---
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*-backups/
+*.kicad_prl
+*.net
+*.dsn
+*.ses
+fp-info-cache
+_autosave-*
+\#auto_saved_files#
+*~
+
+# --- FreeCAD ---
+*.FCBak
+*.FCBak[0-9]
+*.fcbak
+*.FCStd1
+*.lock
+
+# --- Local reference material (not redistributed) ---
+/references/
+
+# --- Web config (served firmware images are build artifacts, not source) ---
+web/*.bin
+
+# --- Python (tools/) ---
+__pycache__/
+*.pyc
+
+# --- OS ---
+.DS_Store
+Thumbs.db
