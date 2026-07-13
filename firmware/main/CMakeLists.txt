@@ -9,6 +9,7 @@ idf_component_register(
         "bt_config.cpp"
         "power.cpp"
         "battery.cpp"
+        "console.cpp"
     INCLUDE_DIRS "."
     # bt_config.cpp pulls in BLE OTA (app_update) and JSON (vendored cjson component). esp_bt etc.
     # are reached via main's implicit full dependency; these two must be requested explicitly.

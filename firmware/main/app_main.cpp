@@ -27,6 +27,8 @@
 #include "nes_controller.hpp"
 #include "bt_transport.hpp"
 #include "bt_config.hpp"
+#include "console.hpp"
+#include "app_control.hpp"
 
 static const char* TAG = "app";
 
@@ -54,6 +56,9 @@ static uint8_t  s_dirmode = 0;
 static int64_t  s_last_connected_ms = 0;
 static int64_t  s_last_battery_ms   = 0;
 static bool     s_start_release_required = false;   // set on Start-wake; blocks instant re-sleep
+static bool     s_led_auto = true;                  // false = console owns the LEDs (see app::set_led_auto)
+static bool     s_sleep_requested = false;          // console `sleep`: enter deep sleep from the loop
+static bool     s_sleep_inhibit = false;            // bench: suppress idle/disconnect auto-sleep
 
 static inline int64_t now_ms() { return esp_timer_get_time() / 1000; }
 
@@ -212,6 +217,7 @@ static void check_gestures() {
 
 // --- LED indication ----------------------------------------------------------------------------
 static void update_leds() {
+    if (!s_led_auto) return;             // console owns the LEDs (led r|g|b ...; `led auto` restores)
     int64_t t = now_ms();
     bt::LinkState link = bt::link_state();
 
@@ -243,6 +249,12 @@ static void check_timers() {
     if (bt::connected() || ext) s_last_connected_ms = t;
     if (ext) nes->resetLastActivity();      // external power holds the device awake
 
+    if (s_sleep_inhibit) {                  // bench: keep the timers from ever tripping sleep
+        s_last_connected_ms = t;
+        nes->resetLastActivity();
+        return;
+    }
+
     // Sleep on prolonged disconnection, or on prolonged inactivity while connected.
     if (!ext && !bt::connected() && t - s_last_connected_ms > kConnIdleTimeoutMs) {
         ESP_LOGI(TAG, "unconnected for %llds -> sleep", (long long)(kConnIdleTimeoutMs / 1000));
@@ -268,6 +280,26 @@ static bt::NesInput read_input(uint8_t p) {
     in.right  = nes->getButtonState(p, NESController::BUTTON_RIGHT);
     return in;
 }
+
+// --- Console / bench hooks (app_control.hpp) ---------------------------------------------------
+namespace app {
+void request_sleep()        { s_sleep_requested = true; }
+void set_sleep_inhibit(bool on) { s_sleep_inhibit = on; }
+void set_led_auto(bool on)  { s_led_auto = on; if (on) update_leds(); }
+uint8_t player()          { return s_player; }
+uint8_t profile()         { return s_profile; }
+uint8_t directional_mode(){ return s_dirmode; }
+void set_profile(uint8_t p) {
+    s_profile = p % bt::num_profiles();
+    settings::set_profile(s_profile);
+    ESP_LOGI(TAG, "profile -> %u (%s)", s_profile + 1, bt::profile_name(s_profile));
+}
+void set_directional_mode(uint8_t m) {
+    s_dirmode = m % bt::num_directional_modes();
+    settings::set_directional_mode(s_dirmode);
+    ESP_LOGI(TAG, "directional mode -> %u (%s)", s_dirmode + 1, bt::directional_mode_name(s_dirmode));
+}
+} // namespace app
 
 extern "C" void app_main(void) {
     esp_err_t err = nvs_flash_init();
@@ -321,6 +353,8 @@ extern "C" void app_main(void) {
     s_last_connected_ms = now_ms();
     s_last_battery_ms   = now_ms();
 
+    console_start();                     // UART REPL for bench + automated testing (serial_proxy send)
+
     char prev_raw[24] = "";
     TickType_t last_log = 0;
     while (true) {
@@ -344,6 +378,8 @@ extern "C" void app_main(void) {
                 last_log = xTaskGetTickCount();
             }
         }
+
+        if (s_sleep_requested) { s_sleep_requested = false; enter_sleep(); }  // console `sleep`
 
         check_gestures();
         update_leds();
