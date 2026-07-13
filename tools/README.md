@@ -2,45 +2,33 @@
 
 Host-side helpers for firmware development.
 
-## `serial_proxy.py`: shared serial monitor and flashing
+## Serial monitor and flashing: benchmux
 
-Only one process can own the serial port at a time, so a person and an automated tool cannot both
-open it, and you would normally have to stop the monitor before every flash. This proxy owns the
-port and tees everything to a shared logfile, and `flash` coordinates the port handoff so nothing
-needs to be stopped by hand. `tail -f` survives flashes; it pauses, then the fresh boot streams in.
+Firmware bring-up (owning the UART, tailing the boot log, flashing without stopping the monitor)
+uses **benchmux**, a standalone bench serial proxy, rather than a script bundled here. Only one
+process can own a serial port, so benchmux owns it and tees everything to a shared logfile; any
+number of readers follow it live while `flash` coordinates the port handoff, so nothing is stopped
+by hand. `tail -f` survives flashes; it pauses, then the fresh boot streams in.
+
+benchmux ships `serial_proxy.py` (USB serial console + flash) and `ble_proxy.py` (BLE console +
+OTA). Run it by path, or symlink it onto `PATH`:
 
 ```bash
-# Start the proxy once; it owns the port and runs until stopped.
-tools/serial_proxy.py monitor
-
-# Watch live, any number of readers, in any terminal:
-tail -f /tmp/btna_serial.log
-
-# Flash without touching the monitor: pause proxy, pio build + upload, resume + reset.
-# On a successful flash the log is truncated for a fresh start:
-tools/serial_proxy.py flash
-tools/serial_proxy.py flash --no-truncate                   # keep the existing log
-tools/serial_proxy.py flash -- --upload-port /dev/ttyUSB1   # extra pio args after `--`
-
-tools/serial_proxy.py reset     # reboot the chip (pulse DTR/RTS)
-tools/serial_proxy.py status    # proxy pid / port / log
-tools/serial_proxy.py stop      # stop the proxy
-tools/serial_proxy.py tail      # follow the log in this terminal
+serial_proxy.py monitor --port /dev/ttyUSB0                       # own the port, tee to /tmp/serial_proxy.log
+tail -f /tmp/serial_proxy.log                                     # watch live, any number of readers
+serial_proxy.py flash --flash-cmd 'pio run -e wroom32 -t upload'  # build + upload, monitor stays up
+serial_proxy.py reset                                             # reboot the chip (pulse DTR/RTS)
+serial_proxy.py send help                                         # inject a console line
+serial_proxy.py status                                            # proxy pid / port / log
+serial_proxy.py stop                                              # stop the proxy
 ```
 
-It survives power cycles and replugs: the proxy watches the port and auto-reopens when the
-USB-serial adapter re-enumerates, flushing the power-on glitch.
-
-How the flash handoff works: `flash` signals the running proxy to release the port, waits, runs
-`pio run -e wroom32 -t upload`, then signals resume and reset so a clean boot is always captured. If
-no proxy is running, `flash` flashes directly. A paused proxy auto-resumes after 180 s as a safety
-net.
-
-The default port is a stable `/dev/serial/by-id/*` symlink when present (it follows the adapter
-across `ttyUSBn` renumbering), falling back to `/dev/ttyUSB0`. Override with `--port` or
-`SERIAL_PROXY_PORT`. Log and state live in `/tmp` (`/tmp/btna_serial.log`,
-`/tmp/btna_serial_proxy.json`); override with `SERIAL_PROXY_LOG` / `SERIAL_PROXY_BAUD`. Requires
-`pyserial`.
+With a `platformio.ini` present, `flash` defaults to `pio run -t upload`; pass `--flash-cmd` to pin
+the env (as above) or drive another toolchain. The proxy auto-reopens when the USB-serial adapter
+re-enumerates across `ttyUSBn` renumbering; pin one adapter with `--port` (a `/dev/serial/by-id/*`
+substring, e.g. `TC2030`, or an exact path). Log defaults to `/tmp/serial_proxy.log`
+(`--log` / `SERIAL_PROXY_LOG`). `pio device monitor` needs a real TTY; reading the logfile is the
+scriptable path.
 
 ## `patch_bluedroid_sniff.py`: pre-build Bluedroid patch
 

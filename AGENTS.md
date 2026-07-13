@@ -32,17 +32,18 @@ pio run -e wroom32             # build the gameplay firmware
 A build is the main static check; there is no unit-test suite. Treat warnings in `main/*.cpp` as
 regressions.
 
-Flashing and serial, when hardware is attached, go through the shared serial proxy so multiple
-readers (a human terminal and an agent reading the log file) can watch one port:
+Flashing and serial, when hardware is attached, go through **benchmux** (a standalone bench serial
+proxy, `serial_proxy.py`) so multiple readers (a human terminal and an agent reading the log file)
+can watch one port. Run it by path or symlinked onto `PATH`:
 
 ```bash
-tools/serial_proxy.py monitor   # run once, owns the port, tees to /tmp/btna_serial.log
-tools/serial_proxy.py flash     # build + upload without stopping the monitor
-tail -f /tmp/btna_serial.log    # or read the file directly
+serial_proxy.py monitor --port /dev/ttyUSB0                       # own the port, tee to /tmp/serial_proxy.log
+serial_proxy.py flash --flash-cmd 'pio run -e wroom32 -t upload'  # build + upload without stopping the monitor
+tail -f /tmp/serial_proxy.log                                     # or read the file directly
 ```
 
 Do not open the serial port directly while the proxy runs. `pio device monitor` needs a real TTY;
-reading the proxy's log file is the agent-friendly path.
+reading the proxy's log file is the agent-friendly path. See [`tools/README.md`](tools/README.md).
 
 PCB checks (KiCad 10 CLI; on some machines KiCad is a flatpak, adjust to your install):
 

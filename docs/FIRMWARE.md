@@ -30,14 +30,14 @@ regressions. If the board already runs firmware, you can skip the cable and flas
 ## Shared serial monitor
 
 Only one process can own the serial port, which is awkward when a person and an automated tool both
-want to watch it. `tools/serial_proxy.py` owns the port and tees everything to a shared logfile,
-and its `flash` command coordinates the port handoff so the monitor never has to be stopped by hand.
-Run from the repo root:
+want to watch it. **benchmux** (a standalone bench serial proxy, `serial_proxy.py`) owns the port
+and tees everything to a shared logfile, and its `flash` command coordinates the port handoff so the
+monitor never has to be stopped by hand. Run it by path or symlinked onto `PATH`:
 
 ```bash
-tools/serial_proxy.py monitor      # start once; tees to /tmp/btna_serial.log
-tail -f /tmp/btna_serial.log       # watch live, any number of readers
-tools/serial_proxy.py flash        # pause proxy, build + upload, resume + reset
+serial_proxy.py monitor --port /dev/ttyUSB0                       # start once; tees to /tmp/serial_proxy.log
+tail -f /tmp/serial_proxy.log                                     # watch live, any number of readers
+serial_proxy.py flash --flash-cmd 'pio run -e wroom32 -t upload'  # pause proxy, build + upload, resume + reset
 ```
 
 `pio device monitor` needs a real TTY; reading the proxy's logfile is the scriptable path. See

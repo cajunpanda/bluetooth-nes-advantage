@@ -31,6 +31,9 @@ _autosave-*
 # --- Local reference material (not redistributed) ---
 /references/
 
+# --- Bench bring-up notes / experiments (not for the public repo) ---
+/history/
+
 # --- Web config (served firmware images are build artifacts, not source) ---
 web/*.bin
 
