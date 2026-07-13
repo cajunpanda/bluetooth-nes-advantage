@@ -21,6 +21,8 @@ static const char* TAG = "battery";
 #define BATT_ADC_ATTEN      ADC_ATTEN_DB_12    // ~0..3.1 V; divided 4.2 V cell reads ~2.1 V
 #define BATT_DIVIDER_NUM    2                  // (R12 + R13) / R13
 #define BATT_CAL_PERMILLE   987                // trim from DPS sweep (fw read +1.3%, pure gain)
+#define BATT_CHARGE_OFFSET_MV 55               // while charging, strip the charge-current IR rise
+                                               // (measured ~58 mV = 0.78 A * ~75 mohm at full Ichg)
 #define BATT_OVERSAMPLE     32
 #define BATT_SETTLE_MS      300                 // ~6 RC of the 500k * 100 nF sense node
 #define BATT_PRESENT_MV     2800                // below this, treat the cell as absent
@@ -90,9 +92,20 @@ static void batt_task(void*) {
             if (s_ema_mv < 0) s_ema_mv = mv;
             else s_ema_mv += (mv - s_ema_mv) * BATT_EMA_NUM / BATT_EMA_DEN;
             s_present = s_ema_mv >= BATT_PRESENT_MV;
-            s_pct     = s_present ? mv_to_pct(s_ema_mv) : 100;
+
+            // SoC from the resting curve, corrected for the charging state. The terminal reads high
+            // while charging (charge-current IR rise), so strip a fixed offset before the curve; and
+            // never report 100% until STBY (is_full) actually confirms it - the elevated voltage
+            // otherwise pins the curve at 100% mid-charge.
+            bool chg = battery::is_charging(), full = battery::is_full();
+            if (!s_present)   s_pct = 100;                       // absent: report full (timers behave)
+            else if (full)    s_pct = 100;                       // STBY: truly full
+            else {
+                uint8_t p = mv_to_pct(chg ? s_ema_mv - BATT_CHARGE_OFFSET_MV : s_ema_mv);
+                s_pct = (chg && p > 99) ? 99 : p;
+            }
             ESP_LOGI(TAG, "VBAT=%d mV (ema %d) present=%d pct=%u chg=%d full=%d",
-                     mv, s_ema_mv, s_present, s_pct, battery::is_charging(), battery::is_full());
+                     mv, s_ema_mv, s_present, s_pct, chg, full);
         } else {
             s_present = false;
         }
