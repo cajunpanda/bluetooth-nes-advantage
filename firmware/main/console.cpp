@@ -128,6 +128,14 @@ static int cmd_forget(int, char**) {
     return 0;
 }
 
+// `config`: reboot into BLE config/OTA mode (same as the A+B+Select hold gesture). Handy for bench
+// work so config mode can be entered over serial without touching the controller.
+static int cmd_config(int, char**) {
+    printf("entering BLE config/OTA mode; rebooting\n");
+    app::enter_config_mode();
+    return 0;
+}
+
 // `sleep`: force deep sleep (wake by holding Start).
 static int cmd_sleep(int, char**) {
     printf("entering deep sleep; hold Start to wake\n");
@@ -185,6 +193,7 @@ static void register_cmds() {
     reg("profile",   "Set button profile (live): profile <n>",         cmd_profile);
     reg("dirmode",   "Set directional mode (live): dirmode <n>",       cmd_dirmode);
     reg("transport", "Set transport + reboot: transport classic|ble",  cmd_transport);
+    reg("config",    "Reboot into BLE config/OTA mode",                cmd_config);
     reg("forget",    "Forget host + rotate identity + reboot",         cmd_forget);
     reg("sleep",     "Force deep sleep (wake by holding Start)",        cmd_sleep);
     reg("autosleep", "Idle/disconnect auto-sleep: autosleep on|off",    cmd_autosleep);

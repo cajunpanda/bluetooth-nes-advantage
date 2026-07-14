@@ -284,6 +284,7 @@ static bt::NesInput read_input(uint8_t p) {
 // --- Console / bench hooks (app_control.hpp) ---------------------------------------------------
 namespace app {
 void request_sleep()        { s_sleep_requested = true; }
+void enter_config_mode()    { ::enter_config_mode(); }   // arm the RTC flag + reboot into config mode
 void set_sleep_inhibit(bool on) { s_sleep_inhibit = on; }
 void set_led_auto(bool on)  { s_led_auto = on; if (on) update_leds(); }
 uint8_t player()          { return s_player; }

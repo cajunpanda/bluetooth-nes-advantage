@@ -18,7 +18,7 @@ coupled artifacts:
 - Hardware (BOM, connection maps, power path): `docs/HARDWARE.md`
 - Firmware build, architecture, sleep/wake, transports, config mode, latency: `docs/FIRMWARE.md`
 - Switch Pro protocol bytes: `docs/switch_pro_protocol.md`
-- The GATT contract is duplicated by design in `firmware/main/bt_config.cpp` and `web/app.js` (UUIDs,
+- The GATT contract is duplicated by design in `firmware/main/bt_config.cpp` and `web/index.html` (UUIDs,
   opcodes, flow control). Change them together.
 
 ## Build and test

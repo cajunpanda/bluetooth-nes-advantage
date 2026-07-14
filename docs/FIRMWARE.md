@@ -163,12 +163,17 @@ The pin map is in [`../firmware/main/board_config.h`](../firmware/main/board_con
 ### Config / OTA mode
 
 A+B+Select reboots into a dedicated BLE-only mode (`bt_config.cpp`) serving a small custom GATT
-service, so a browser can change settings and flash firmware over the air. The web client is
-[`../web/`](../web/). The GATT contract (service `5f1d0000-...`, four characteristics) is
-documented at the top of `bt_config.cpp` and mirrored in `web/app.js`; change them together.
+service, so a browser can change settings, test the controller live, and flash firmware over the
+air. The web client is the single-file [`../web/index.html`](../web/index.html). The GATT contract
+(service `5f1d0000-...`, seven characteristics: INFO/CMD/OTACTL/OTADATA plus INPUT/LOG/CONSOLE) is
+documented at the top of `bt_config.cpp` and mirrored in `web/index.html`; change them together.
 
 - Entry is a one-shot flag in `RTC_NOINIT_ATTR` memory, honored only when the reset reason is a
-  software reset. Any cold boot returns to gameplay.
+  software reset. Any cold boot returns to gameplay. The `config` bench-console command arms the
+  same flag over serial, so config mode can be entered without the button gesture.
+- Config mode brings up the battery monitor and streams a live INPUT frame (buttons, player-select,
+  turbo rate) plus the device log (LOG), and takes console commands (CONSOLE) whose output it
+  echoes back over LOG.
 - Config mode advertises on a distinct BT address (factory MAC with one byte flipped). Hosts cache
   GATT layouts per address; without this, a host that had bonded the gameplay HID would reuse the
   stale handle map and fail to connect.

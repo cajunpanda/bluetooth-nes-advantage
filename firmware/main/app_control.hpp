@@ -11,6 +11,7 @@
 namespace app {
 
 void    request_sleep();               // enter deep sleep from the main loop (like the Start gesture)
+void    enter_config_mode();           // reboot into BLE config/OTA mode (like the A+B+Select gesture)
 void    set_sleep_inhibit(bool on);    // true = suppress the idle/disconnect auto-sleep (bench)
 void    set_profile(uint8_t p);        // apply + persist a button profile live (wraps to range)
 void    set_directional_mode(uint8_t m); // apply + persist a directional mode live (wraps to range)

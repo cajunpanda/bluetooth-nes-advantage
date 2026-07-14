@@ -3,146 +3,1208 @@
 <!-- Copyright 2026 Aaron Perkins -->
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#c7c3b8">
 <title>NES Advantage - Config &amp; OTA</title>
 <style>
+@layer reset, tokens, base, layout, components, motion;
+
+/* ============================ reset ============================ */
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  * { margin: 0; }
+  html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+  body { min-height: 100dvh; -webkit-font-smoothing: antialiased; }
+  button, input, select { font: inherit; color: inherit; }
+  h1, h2, h3 { font-weight: inherit; font-size: inherit; }
+  [hidden] { display: none !important; }
+}
+
+/* ============================ tokens ============================ */
+@layer tokens {
   :root {
-    --bg: #11131a; --panel: #1b1e29; --panel2: #232734; --line: #2e3342;
-    --txt: #e7eaf3; --dim: #9aa3b8; --accent: #e23c3c; --accent2: #3c6ee2;
-    --ok: #3ec46d; --warn: #e2a13c; --err: #e2503c;
-    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: light;
+
+    /* molded grey plastic (the console body) */
+    --plastic:    oklch(0.835 0.008 95);
+    --plastic-2:  oklch(0.745 0.010 95);
+    --plastic-hi: oklch(0.905 0.006 95);
+    --plastic-lo: oklch(0.585 0.012 95);
+    --bezel:      oklch(0.300 0.006 250);
+
+    /* CRT screen (dark readout insets, faint phosphor cast) */
+    --screen:      oklch(0.190 0.010 150);
+    --screen-2:    oklch(0.250 0.012 150);
+    --screen-line: oklch(0.330 0.012 150);
+
+    /* NES red — the one hot accent */
+    --red:      oklch(0.555 0.192 27);
+    --red-2:    oklch(0.490 0.190 27);
+    --red-ink:  oklch(0.980 0.020 27);
+    --red-soft: oklch(0.555 0.192 27 / 0.16);
+    --red-glow: oklch(0.62 0.20 27);
+
+    /* ink */
+    --ink:          oklch(0.300 0.010 95);
+    --muted:        oklch(0.455 0.010 95);
+    --ink-screen:   oklch(0.930 0.020 150);
+    --muted-screen: oklch(0.640 0.020 150);
+
+    /* semantic */
+    --ok:   oklch(0.700 0.160 150);
+    --warn: oklch(0.780 0.150 80);
+
+    --r-xs: 4px; --r-sm: 7px; --r-md: 11px; --r-lg: 16px; --r-pill: 999px;
+
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --z-topbar: 20; --z-footbar: 30;
+    --rail-w: 15.5rem; --content-w: 44rem;
+    font-synthesis: none;
   }
-  * { box-sizing: border-box; }
+}
+
+/* ============================ base ============================ */
+@layer base {
   body {
-    margin: 0; background: var(--bg); color: var(--txt);
-    font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    display: flex; justify-content: center; padding: 24px 16px 64px;
+    font: 400 15.5px/1.5 var(--font-sans);
+    color: var(--ink);
+    /* the console shell: two-tone grey with the top face lighter than the recessed floor */
+    background:
+      radial-gradient(120% 80% at 50% -10%, var(--plastic-hi), transparent 60%),
+      linear-gradient(var(--plastic) 0 42%, var(--plastic-2) 42% 100%);
+    background-attachment: fixed;
+    font-variant-numeric: tabular-nums;
   }
-  .wrap { width: 100%; max-width: 720px; }
-  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .2px; }
-  h1 .chip { font-size: 11px; vertical-align: middle; background: var(--accent);
-    color: #fff; padding: 2px 7px; border-radius: 999px; margin-left: 8px; }
-  .sub { color: var(--dim); margin: 0 0 20px; font-size: 13px; }
-  .card { background: var(--panel); border: 1px solid var(--line);
-    border-radius: 14px; padding: 18px; margin-bottom: 16px; }
-  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px;
-    color: var(--dim); margin: 0 0 14px; }
-  button {
-    font: inherit; font-weight: 600; cursor: pointer; border: 0; border-radius: 10px;
-    padding: 10px 16px; background: var(--panel2); color: var(--txt);
-    border: 1px solid var(--line); transition: .12s; }
-  button:hover:not(:disabled) { border-color: #44506a; background: #272c3b; }
-  button:disabled { opacity: .4; cursor: not-allowed; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.primary:hover:not(:disabled) { background: #f04a4a; }
-  button.accent2 { background: var(--accent2); border-color: var(--accent2); color: #fff; }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .grid { display: grid; grid-template-columns: 140px 1fr; gap: 10px 14px; align-items: center; }
-  .grid label { color: var(--dim); font-size: 13px; }
-  select, input[type=file] { font: inherit; background: var(--panel2); color: var(--txt);
-    border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; width: 100%; }
-  .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 13px;
-    padding: 5px 11px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); }
-  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
-  .dot.off { background: var(--err); }
-  .kv { font-family: var(--mono); font-size: 13px; }
-  .muted { color: var(--dim); }
-  .bar { height: 12px; background: var(--panel2); border-radius: 999px; overflow: hidden;
-    border: 1px solid var(--line); }
-  .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,var(--accent2),var(--ok));
-    transition: width .15s; }
-  #log { font-family: var(--mono); font-size: 12px; background: #0c0e14; border: 1px solid var(--line);
-    border-radius: 10px; padding: 12px; height: 200px; overflow-y: auto; white-space: pre-wrap; color: #c7d0e6; }
-  #log .t { color: #5a657f; }
-  #log .e { color: var(--err); }
-  #log .ok { color: var(--ok); }
-  #log .w { color: var(--warn); }
-  .hide { display: none !important; }
-  .gap { height: 8px; }
-  a { color: var(--accent2); }
-  #otaCard.drop { outline: 2px dashed var(--accent2); outline-offset: 4px; background: #1d2230; }
-  .drophint { color: var(--dim); font-size: 12px; margin: 8px 0 0; }
+  h2, h3 { letter-spacing: -0.01em; text-wrap: balance; }
+
+  :where(a, button, input, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--red); outline-offset: 2px; border-radius: var(--r-xs);
+  }
+  a { color: var(--red-2); text-underline-offset: 2px; font-weight: 550; }
+  a:hover { color: var(--red); }
+
+  code {
+    font-family: var(--font-mono); font-size: 0.86em;
+    background: oklch(0.70 0.01 95); padding: 0.05em 0.35em; border-radius: 4px;
+  }
+
+  /* diegetic equipment micro-label (sits on controls, never a section eyebrow) */
+  .label-mono {
+    font-family: var(--font-mono); font-size: 0.66rem; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+  }
+}
+
+/* ============================ layout ============================ */
+@layer layout {
+  .app { min-height: 100dvh; }
+  .rail-top { padding-inline: clamp(0.9rem, 4vw, 1.15rem); }
+  .main { container: main / inline-size; padding: 0 clamp(0.9rem, 4vw, 1.2rem) 6.5rem; }
+  .main-inner { max-width: var(--content-w); margin-inline: auto; }
+
+  /* ---- mobile: the deck dissolves; top block sticks, actions pin bottom ---- */
+  @media (max-width: 819px) {
+    .rail { display: contents; }
+    .rail-top {
+      position: sticky; top: 0; z-index: var(--z-topbar);
+      background: linear-gradient(var(--plastic), oklch(0.80 0.008 95));
+      border-bottom: 2px solid var(--red);
+      box-shadow: 0 2px 0 var(--plastic-lo), 0 6px 14px oklch(0 0 0 / 0.14);
+      display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+      gap: 0.5rem 0.8rem; padding-block: 0.7rem 0;
+    }
+    .brand { grid-column: 1; } #status { grid-column: 3; justify-self: end; }
+    .nav { grid-column: 1 / -1; }
+    .rail-foot {
+      position: fixed; inset: auto 0 0 0; z-index: var(--z-footbar);
+      padding: 1.4rem clamp(0.9rem, 4vw, 1.15rem) calc(0.7rem + env(safe-area-inset-bottom, 0));
+      background: linear-gradient(transparent, var(--plastic-2) 34%);
+      pointer-events: none;
+    }
+    .rail-foot > * { pointer-events: auto; }
+    .brand .sub { display: none; }
+  }
+
+  /* ---- desktop: two-pane front panel ---- */
+  @media (min-width: 820px) {
+    .app { display: grid; grid-template-columns: var(--rail-w) 1fr; }
+    .rail {
+      grid-row: 1; display: flex; flex-direction: column; gap: 1.4rem;
+      position: sticky; top: 0; align-self: start; height: 100dvh;
+      padding: 1.3rem 1.15rem;
+      background: linear-gradient(180deg, var(--plastic) 0 60%, var(--plastic-2));
+      border-right: 2px solid var(--plastic-lo);
+      box-shadow: inset -1px 0 0 var(--plastic-hi), 3px 0 10px oklch(0 0 0 / 0.10);
+    }
+    .rail-top { padding-inline: 0; display: flex; flex-direction: column; gap: 1.1rem; }
+    .rail-top #status { align-self: start; }
+    .rail-foot { margin-top: auto; }
+    .main { padding: 1.5rem clamp(1.1rem, 3vw, 2.4rem) 4rem; }
+    .main-inner { margin-inline: 0; max-width: 46rem; }
+  }
+}
+
+/* ============================ components ============================ */
+@layer components {
+
+  /* ---- brand: wordmark on the red title stripe ---- */
+  .brand { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+  .mark {
+    flex: 0 0 auto; display: grid; place-items: center; width: 2.15rem; aspect-ratio: 1;
+    border-radius: var(--r-sm); background: var(--bezel);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12), 0 1px 2px oklch(0 0 0 / 0.35);
+  }
+  .mark svg { width: 1.2rem; height: 1.2rem; }
+  .wm { min-width: 0; }
+  .wm .name {
+    display: inline-block; font-family: var(--font-mono); font-weight: 700; font-size: 0.82rem;
+    letter-spacing: 0.06em; color: var(--red-ink); background: var(--red);
+    padding: 0.16rem 0.5rem; border-radius: var(--r-xs);
+    box-shadow: inset 0 -2px 0 oklch(0 0 0 / 0.20), 0 1px 1px oklch(0 0 0 / 0.2);
+  }
+  .wm .sub {
+    display: block; margin-top: 0.28rem; font-family: var(--font-mono); font-size: 0.6rem;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+  }
+
+  /* ---- status pill ---- */
+  .pill {
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.3rem 0.65rem 0.3rem 0.55rem; border-radius: var(--r-pill);
+    font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.02em;
+    border: 1px solid var(--plastic-lo); background: oklch(0.79 0.008 95); color: var(--muted);
+    box-shadow: inset 0 1px 0 var(--plastic-hi);
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+  }
+  .dot {
+    width: 0.5rem; aspect-ratio: 1; border-radius: 50%; background: var(--plastic-lo); flex: 0 0 auto;
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+  .pill[data-state="connected"] { color: var(--red-2); border-color: var(--red); background: var(--red-soft); }
+  .pill[data-state="connected"] .dot { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+  .pill[data-state="connecting"] { color: oklch(0.5 0.13 80); border-color: var(--warn); }
+  .pill[data-state="connecting"] .dot { background: var(--warn); animation: pulse 1s ease-in-out infinite; }
+
+  /* ---- nav (sections) — POWER/RESET style slabs ---- */
+  .nav { display: flex; gap: 0.15rem; }
+  .nav .tab {
+    position: relative; background: none; border: 0; cursor: pointer;
+    font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--muted);
+    transition: color 0.16s, background 0.16s;
+  }
+  .nav .tab:hover { color: var(--ink); }
+  .nav .tab[aria-selected="true"] { color: var(--ink); }
+
+  @media (max-width: 819px) {
+    .nav { border-top: 1px solid var(--plastic-lo); }
+    .nav .tab { flex: 1 1 0; padding: 0.6rem 0.4rem 0.7rem; text-align: center; }
+    .nav .tab[aria-selected="true"]::after {
+      content: ""; position: absolute; left: 0.5rem; right: 0.5rem; bottom: -1px; height: 3px;
+      background: var(--red); border-radius: 2px 2px 0 0;
+    }
+  }
+  @media (min-width: 820px) {
+    .nav { flex-direction: column; gap: 0.3rem; }
+    .nav .tab {
+      display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.7rem;
+      border-radius: var(--r-sm); text-align: left;
+      background: oklch(0.79 0.008 95); border: 1px solid var(--plastic-lo);
+      box-shadow: inset 0 1px 0 var(--plastic-hi);
+    }
+    .nav .tab::before {
+      content: ""; width: 0.55rem; aspect-ratio: 1; border-radius: 2px;
+      background: var(--plastic-2); box-shadow: inset 0 0 0 1px var(--plastic-lo);
+      transition: background 0.16s, box-shadow 0.16s;
+    }
+    .nav .tab:hover { background: oklch(0.82 0.008 95); }
+    .nav .tab[aria-selected="true"] { background: var(--plastic-hi); }
+    .nav .tab[aria-selected="true"]::before { background: var(--red); box-shadow: 0 0 7px var(--red-glow); }
+  }
+
+  /* ---- rail footer (player chip + disconnect + apply) ---- */
+  .rail-foot { display: flex; align-items: center; gap: 0.8rem; }
+  .foot-actions { display: flex; align-items: center; gap: 0.55rem; }
+  .saved {
+    font-family: var(--font-mono); font-size: 0.7rem; color: var(--red-2); font-weight: 600;
+    white-space: nowrap; opacity: 0; transition: opacity 0.2s;
+  }
+  .saved.show { opacity: 1; }
+  @media (max-width: 819px) {
+    .rail-foot .inner-foot {
+      position: relative; width: 100%; display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.5rem 0.5rem 0.5rem 0.85rem;
+      background: var(--plastic); border: 1px solid var(--plastic-lo); border-radius: var(--r-md);
+      box-shadow: inset 0 1px 0 var(--plastic-hi), 0 8px 22px oklch(0 0 0 / 0.22);
+    }
+    .rail-foot .player-chip { flex: 1 1 auto; min-width: 0; }
+    .rail-foot .btn { padding: 0.5rem 0.7rem; font-size: 0.85rem; }
+    .rail-foot .saved {
+      position: absolute; top: -1.7rem; right: 0.4rem; padding: 0.2rem 0.5rem;
+      border-radius: var(--r-sm); background: var(--plastic); border: 1px solid var(--plastic-lo);
+    }
+  }
+  @media (min-width: 820px) {
+    .rail-foot {
+      flex-direction: column; align-items: stretch; gap: 0.85rem;
+      padding-top: 1rem; border-top: 1px solid var(--plastic-lo);
+    }
+    .rail-foot .inner-foot { display: contents; }
+    .foot-actions { flex-direction: column; align-items: stretch; gap: 0.45rem; }
+    .foot-actions .btn { width: 100%; }
+    .foot-actions #apply { order: 1; } .foot-actions #disconnect { order: 2; }
+    .foot-actions .saved { order: 3; text-align: center; }
+  }
+
+  /* ---- buttons ---- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+    font-weight: 600; font-size: 0.9rem; padding: 0.58rem 1rem; border-radius: var(--r-sm);
+    cursor: pointer; color: var(--ink);
+    background: linear-gradient(var(--plastic-hi), oklch(0.78 0.008 95));
+    border: 1px solid var(--plastic-lo);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), 0 1px 2px oklch(0 0 0 / 0.16);
+    transition: background 0.15s, border-color 0.15s, transform 0.06s, box-shadow 0.15s, opacity 0.15s;
+  }
+  .btn:hover { background: linear-gradient(var(--plastic-hi), oklch(0.80 0.008 95)); border-color: var(--muted); }
+  .btn:active { transform: translateY(1px); box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.2); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+  /* primary = red POWER slide */
+  .btn-primary {
+    color: var(--red-ink); border-color: var(--red-2);
+    background: linear-gradient(var(--red-glow), var(--red) 55%, var(--red-2));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.28), inset 0 -2px 0 oklch(0 0 0 / 0.22), 0 1px 3px oklch(0 0 0 / 0.22);
+  }
+  .btn-primary:hover { background: linear-gradient(var(--red-glow), var(--red-2)); border-color: var(--red-2); }
+  .btn-ghost {
+    background: oklch(0.80 0.008 95 / 0.5); border-color: var(--plastic-lo); color: var(--muted);
+    box-shadow: inset 0 1px 0 var(--plastic-hi);
+  }
+  .btn-ghost:hover { color: var(--ink); background: oklch(0.82 0.008 95); }
+  .btn-lg { padding: 0.85rem 1.6rem; font-size: 1rem; border-radius: var(--r-md); }
+
+  /* ---- panels: injection-molded plastic ---- */
+  .panel {
+    position: relative; background: var(--plastic); border: 1px solid var(--plastic-lo);
+    border-radius: var(--r-md); padding: 1.05rem 1.1rem;
+    box-shadow: inset 0 1px 0 var(--plastic-hi), inset 0 -2px 3px oklch(0 0 0 / 0.05), 0 1px 2px oklch(0 0 0 / 0.10);
+  }
+  .stack > * + * { margin-top: 1rem; }
+  .panel-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.85rem; }
+  .panel-head h2 { font-size: 0.98rem; font-weight: 650; color: var(--ink); flex: 1 1 auto; letter-spacing: -0.005em; }
+  .panel-head .hint { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); }
+  /* sparing molded screw-heads, hero only */
+  .screwed::before, .screwed::after {
+    content: ""; position: absolute; width: 9px; height: 9px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, oklch(0.72 0.01 95), oklch(0.55 0.012 95));
+    box-shadow: inset 0 0 0 1px oklch(0.5 0.012 95 / 0.6);
+  }
+  .screwed::before { top: 8px; right: 8px; }
+  .screwed::after { bottom: 8px; left: 8px; }
+
+  /* ---- connect screen (insert controller) ---- */
+  .connect {
+    position: relative; padding: clamp(1.8rem, 5vw, 2.8rem) clamp(1.3rem, 4vw, 2.2rem);
+    border: 1px solid var(--plastic-lo); border-radius: var(--r-lg); margin-top: 1.4rem;
+    background: linear-gradient(var(--plastic-hi), var(--plastic));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), 0 2px 8px oklch(0 0 0 / 0.1);
+  }
+  /* the cartridge slot */
+  .slot {
+    height: 2.1rem; border-radius: var(--r-sm); margin-bottom: 1.5rem; max-width: 22rem;
+    background: linear-gradient(var(--screen), var(--screen-2));
+    box-shadow: inset 0 3px 6px oklch(0 0 0 / 0.6), inset 0 -1px 0 var(--plastic-hi), 0 1px 0 var(--plastic-hi);
+    border: 1px solid var(--plastic-lo);
+  }
+  .connect h2 { font-size: clamp(1.4rem, 3.6vw, 1.75rem); font-weight: 680; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+  .connect p { color: var(--muted); font-size: 0.96rem; text-wrap: pretty; max-width: 42ch; margin-bottom: 1.5rem; }
+  .connect .req {
+    margin-top: 1.5rem; padding-top: 1.2rem; border-top: 1px solid var(--plastic-lo);
+    font-size: 0.82rem; color: var(--muted); line-height: 1.75; max-width: 52ch;
+  }
+  .connect .req b { color: var(--ink); font-weight: 600; }
+  .steps { margin: 0 0 1.5rem; padding: 0; list-style: none; display: grid; gap: 0.5rem; max-width: 42ch; }
+  .steps li { display: flex; gap: 0.6rem; font-size: 0.9rem; color: var(--ink); }
+  .steps .n {
+    flex: 0 0 auto; width: 1.35rem; height: 1.35rem; border-radius: 50%; display: grid; place-items: center;
+    font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700;
+    background: var(--red); color: var(--red-ink); box-shadow: inset 0 -1px 0 oklch(0 0 0 / 0.25);
+  }
+  .steps kbd {
+    font-family: var(--font-mono); font-size: 0.82rem; background: var(--bezel); color: var(--ink-screen);
+    padding: 0.02em 0.4em; border-radius: 4px; box-shadow: 0 1px 0 oklch(0 0 0 / 0.4);
+  }
+
+  /* =================== CRT screen (dark readout inset) =================== */
+  .screen {
+    position: relative; background: radial-gradient(120% 120% at 50% 0%, var(--screen-2), var(--screen));
+    border-radius: var(--r-sm); color: var(--ink-screen);
+    box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.5), inset 0 2px 10px oklch(0 0 0 / 0.55),
+                inset 0 0 30px oklch(0.4 0.05 150 / 0.06);
+  }
+
+  /* =================== button tester (hero) =================== */
+  .tester { padding: 1.15rem 1.1rem 1.25rem; }
+  .tester-head {
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;
+    color: var(--muted-screen); font-family: var(--font-mono); font-size: 0.66rem;
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .tester-head .live { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .tester-head .live .dot { background: var(--screen-line); }
+  .tester[data-live="1"] .live { color: var(--red-glow); }
+  .tester[data-live="1"] .live .dot { background: var(--red); box-shadow: 0 0 7px var(--red-glow); animation: pulse 1.3s ease-in-out infinite; }
+  .tester-head .who { margin-left: auto; color: var(--ink-screen); font-weight: 600; letter-spacing: 0.06em; }
+
+  .pad-area { display: flex; flex-wrap: wrap; gap: 1.4rem 1.2rem; align-items: center; justify-content: space-between; }
+
+  /* D-pad */
+  .dpad { display: grid; grid-template-columns: repeat(3, 2.3rem); grid-template-rows: repeat(3, 2.3rem); gap: 3px; }
+  .dpad .k { grid-area: auto; }
+  .dpad .up    { grid-column: 2; grid-row: 1; }
+  .dpad .left  { grid-column: 1; grid-row: 2; }
+  .dpad .right { grid-column: 3; grid-row: 2; }
+  .dpad .down  { grid-column: 2; grid-row: 3; }
+  .dpad .hub   { grid-column: 2; grid-row: 2; background: var(--screen-line); box-shadow: none; }
+
+  .k {
+    display: grid; place-items: center; border-radius: var(--r-xs);
+    background: linear-gradient(oklch(0.34 0.008 150), oklch(0.27 0.008 150));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 -2px 3px oklch(0 0 0 / 0.4);
+    color: var(--muted-screen); transition: background 0.05s, box-shadow 0.05s, color 0.05s;
+  }
+  .k svg { width: 0.95rem; height: 0.95rem; }
+  .k.on {
+    background: linear-gradient(var(--red-glow), var(--red));
+    box-shadow: 0 0 0 1px var(--red-2), 0 0 14px var(--red-glow), inset 0 1px 0 oklch(1 0 0 / 0.3);
+    color: var(--red-ink);
+  }
+
+  /* center cluster: select / start + P1/P2 slide */
+  .center { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; }
+  .ss { display: flex; gap: 0.6rem; }
+  .cap {
+    display: grid; place-items: center; padding: 0.34rem 0.7rem; border-radius: var(--r-pill);
+    font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
+    background: linear-gradient(oklch(0.34 0.008 150), oklch(0.27 0.008 150));
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 -2px 3px oklch(0 0 0 / 0.4);
+    color: var(--muted-screen); transition: all 0.05s;
+  }
+  .cap.on {
+    background: linear-gradient(var(--red-glow), var(--red)); color: var(--red-ink);
+    box-shadow: 0 0 12px var(--red-glow), inset 0 1px 0 oklch(1 0 0 / 0.3);
+  }
+
+  /* P1/P2 hardware slide switch */
+  .pswitch {
+    display: inline-flex; padding: 3px; gap: 3px; border-radius: var(--r-pill);
+    background: oklch(0.15 0.008 150); box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.6);
+  }
+  .pswitch span {
+    font-family: var(--font-mono); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em;
+    padding: 0.22rem 0.6rem; border-radius: var(--r-pill); color: var(--muted-screen);
+  }
+  .pswitch span.sel { background: var(--red); color: var(--red-ink); box-shadow: 0 0 10px var(--red-glow); }
+
+  /* face buttons B / A */
+  .face { display: flex; gap: 0.9rem; align-items: center; }
+  .abtn {
+    width: 3.4rem; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+    font-family: var(--font-mono); font-weight: 700; font-size: 1.05rem;
+    color: var(--muted-screen);
+    background: radial-gradient(circle at 38% 32%, oklch(0.36 0.03 27), oklch(0.24 0.02 27));
+    box-shadow: inset 0 0 0 2px oklch(0.42 0.10 27), inset 0 -3px 6px oklch(0 0 0 / 0.5), 0 1px 2px oklch(0 0 0 / 0.4);
+    transition: all 0.05s;
+  }
+  .abtn.on {
+    color: var(--red-ink);
+    background: radial-gradient(circle at 38% 32%, var(--red-glow), var(--red-2));
+    box-shadow: inset 0 0 0 2px var(--red-glow), 0 0 22px var(--red-glow), inset 0 -3px 6px oklch(0 0 0 / 0.35);
+  }
+
+  /* turbo meters */
+  .turbo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem 1rem; margin-top: 1.15rem; }
+  .turbo { display: flex; flex-direction: column; gap: 0.35rem; }
+  .turbo .tlabel { display: flex; justify-content: space-between; align-items: baseline; }
+  .turbo .tlabel b { color: var(--ink-screen); font-family: var(--font-mono); font-weight: 700; font-size: 0.82rem; }
+  .turbo .tlabel .hz { font-family: var(--font-mono); font-size: 0.74rem; color: var(--muted-screen); }
+  .turbo .tlabel .hz.hot { color: var(--red-glow); }
+  .segs { display: flex; gap: 3px; height: 0.7rem; }
+  .segs i {
+    flex: 1 1 0; border-radius: 2px; background: oklch(0.3 0.008 150);
+    box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.4); transition: background 0.08s, box-shadow 0.08s;
+  }
+  .segs i.lit { background: var(--red); box-shadow: 0 0 6px var(--red-glow); }
+
+  .tester-note { margin-top: 1rem; font-size: 0.8rem; color: var(--muted-screen); font-family: var(--font-mono); }
+
+  /* =================== battery gauge =================== */
+  .batt-panel { display: flex; align-items: center; gap: 1rem; }
+  .cell {
+    position: relative; width: 4.6rem; height: 2.1rem; flex: 0 0 auto;
+    border: 2px solid var(--ink); border-radius: 4px; padding: 3px;
+    background: oklch(0.72 0.01 95);
+  }
+  .cell::after {
+    content: ""; position: absolute; right: -6px; top: 50%; translate: 0 -50%;
+    width: 4px; height: 0.9rem; background: var(--ink); border-radius: 0 2px 2px 0;
+  }
+  .cell > i { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left center; border-radius: 2px; background: var(--ok); transition: transform 0.4s var(--ease), background 0.4s; }
+  .cell[data-state="warn"] > i { background: var(--warn); }
+  .cell[data-state="low"] > i  { background: var(--red); }
+  .cell[data-state="absent"] > i { transform: scaleX(0) !important; }
+  .cell[data-charging="1"] > i { animation: chg 1.3s ease-in-out infinite; }
+  .batt-read { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+  .batt-read .big { font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--ink); line-height: 1; }
+  .batt-read .sub { font-size: 0.8rem; color: var(--muted); }
+  .batt-read .sub b { color: var(--red-2); font-weight: 650; }
+
+  /* =================== device meta strip =================== */
+  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.7rem 1.2rem; }
+  .meta .kv { display: flex; flex-direction: column; gap: 0.1rem; }
+  .meta .kv .k { display: block; background: none; box-shadow: none; font-family: var(--font-mono); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: oklch(0.40 0.012 95); }
+  .meta .kv .v { font-family: var(--font-mono); font-size: 0.9rem; color: var(--ink); word-break: break-word; }
+
+  /* =================== form controls =================== */
+  .field { display: grid; grid-template-columns: 8.5rem 1fr; gap: 0.7rem 1rem; align-items: center; }
+  .field > label { font-size: 0.9rem; color: var(--ink); }
+  select {
+    width: 100%; padding: 0.55rem 0.7rem; border-radius: var(--r-sm); font-size: 0.9rem;
+    background: oklch(0.80 0.008 95); border: 1px solid var(--plastic-lo); color: var(--ink);
+    box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.12);
+  }
+  select:hover { border-color: var(--muted); }
+  .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.4rem; }
+  .note { font-size: 0.82rem; color: var(--muted); line-height: 1.5; text-wrap: pretty; }
+  .note b { color: var(--ink); font-weight: 600; }
+
+  /* =================== OTA (cartridge slot drop) =================== */
+  .drop {
+    display: grid; place-items: center; text-align: center; gap: 0.3rem;
+    padding: 1.3rem 1rem; margin-bottom: 0.7rem; border: 2px dashed var(--plastic-lo);
+    border-radius: var(--r-md); color: var(--muted); font-size: 0.88rem; cursor: pointer;
+    background: oklch(0.80 0.008 95 / 0.5); transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  .drop:hover { border-color: var(--muted); color: var(--ink); }
+  .drop.over { border-color: var(--red); color: var(--ink); background: var(--red-soft); }
+  .drop b { color: var(--ink); font-weight: 650; }
+  .drop input { display: none; }
+  .bar {
+    height: 0.6rem; border-radius: var(--r-pill); background: var(--screen);
+    box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.6); overflow: hidden; margin: 0.6rem 0 0.45rem;
+  }
+  .bar > i { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, var(--red-2), var(--red-glow)); transition: transform 0.2s var(--ease); }
+  .fw-status { display: flex; justify-content: space-between; gap: 1rem; font-family: var(--font-mono); font-size: 0.76rem; color: var(--muted); min-height: 1.2em; }
+  .fw-status .rate { color: var(--muted); flex: 0 0 auto; }
+
+  /* =================== console + log (screen) =================== */
+  #conOut, #log {
+    white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono);
+    font-size: 11.5px; line-height: 1.6; color: var(--ink-screen); overflow: auto; overscroll-behavior: contain;
+    padding: 0.6rem 0.7rem; border-radius: var(--r-sm);
+  }
+  #conOut { height: 12rem; margin-bottom: 0.55rem; }
+  #conOut:empty::before { content: "waiting for device log"; color: var(--muted-screen); }
+  #log { max-height: 9rem; margin-top: 0.4rem; }
+  #log:empty { display: none; }
+  .ok-t { color: var(--ok); } .err-t { color: var(--red-glow); } .dim-t { color: var(--muted-screen); }
+  .clip-row { display: flex; gap: 0.5rem; }
+  input[type=text] {
+    flex: 1 1 auto; min-width: 0; padding: 0.55rem 0.7rem; font-family: var(--font-mono); font-size: 0.86rem;
+    background: oklch(0.80 0.008 95); border: 1px solid var(--plastic-lo); border-radius: var(--r-sm); color: var(--ink);
+    box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.12);
+  }
+  .hint-btn {
+    font-family: var(--font-mono); font-size: 0.7rem; padding: 0.2rem 0.55rem; color: var(--muted);
+    background: oklch(0.80 0.008 95); border: 1px solid var(--plastic-lo); border-radius: var(--r-sm); cursor: pointer; flex: 0 0 auto;
+  }
+  .hint-btn:hover { color: var(--ink); border-color: var(--muted); }
+  details.activity summary {
+    font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); cursor: pointer; padding: 0.3rem 0;
+    list-style: none; user-select: none;
+  }
+  details.activity summary::-webkit-details-marker { display: none; }
+  details.activity summary::before { content: "+ "; }
+  details.activity[open] summary::before { content: "- "; }
+
+  .player-chip { display: inline-flex; align-items: center; gap: 0.5rem; font-family: var(--font-mono); font-weight: 600; font-size: 0.76rem; color: var(--muted); }
+  .player-chip .dot { width: 0.5rem; background: var(--plastic-lo); }
+  .player-chip[data-on="1"] { color: var(--red-2); }
+  .player-chip[data-on="1"] .dot { background: var(--red); box-shadow: 0 0 6px var(--red-glow); }
+
+  #banner {
+    display: none; margin: 0.8rem 0 0; padding: 0.7rem 0.9rem; border-radius: var(--r-sm);
+    font-size: 0.88rem; background: var(--red-soft); border: 1px solid var(--red); color: var(--red-2);
+  }
+  #banner.show { display: block; }
+  .tab-panel.stack > * + * { margin-top: 1rem; }
+}
+
+/* ============================ motion ============================ */
+@layer motion {
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes chg { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .panel-in > * { animation: rise 0.4s var(--ease) backwards; }
+  .panel-in > *:nth-child(2) { animation-delay: 0.05s; }
+  .panel-in > *:nth-child(3) { animation-delay: 0.1s; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.2s; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+    ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+    /* the live tester + meters are state, not decoration: they must still update instantly */
+    .k, .cap, .abtn, .segs i, .cell > i { transition: none !important; }
+  }
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>NES Advantage</h1>
-  <p class="sub">Bluetooth LE configuration &amp; over-the-air firmware updater</p>
+<div class="app">
 
-  <div class="card">
-    <h2>Connection</h2>
-    <div class="row" style="justify-content:space-between">
-      <span class="pill"><span id="connDot" class="dot off"></span><span id="connState">Disconnected</span></span>
-      <div class="row">
-        <button id="connectBtn" class="primary">Connect</button>
-        <button id="disconnectBtn" disabled>Disconnect</button>
+  <aside class="rail">
+    <div class="rail-top">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="8" width="18" height="9" rx="2.5"/><path d="M7 12.5h2M8 11.5v2"/><circle cx="16.5" cy="12.5" r="1.1" fill="var(--red)"/>
+          </svg>
+        </div>
+        <div class="wm">
+          <span class="name">NES ADVANTAGE</span>
+          <span class="sub">Bluetooth config &amp; OTA</span>
+        </div>
+      </div>
+
+      <span class="pill" id="status" data-state="disconnected" role="status" aria-live="polite">
+        <span class="dot"></span><span class="label">Not connected</span>
+      </span>
+
+      <nav class="nav" id="tabs" role="tablist" aria-label="Sections" hidden>
+        <button class="tab" role="tab" data-tab="test"      aria-selected="true">Test</button>
+        <button class="tab" role="tab" data-tab="configure" aria-selected="false">Configure</button>
+        <button class="tab" role="tab" data-tab="system"    aria-selected="false">System</button>
+      </nav>
+    </div>
+
+    <div class="rail-foot" id="railFoot" hidden>
+      <div class="inner-foot">
+        <span class="player-chip" id="playerChip" data-on="0"><span class="dot"></span><span id="playerText">P1</span></span>
+        <div class="foot-actions">
+          <span class="saved" id="savedMsg">Applied</span>
+          <button id="disconnect" class="btn btn-ghost">Disconnect</button>
+          <button id="apply" class="btn btn-primary">Apply &amp; reboot</button>
+        </div>
       </div>
     </div>
-    <div id="availWarn" class="muted hide" style="margin-top:12px;font-size:13px"></div>
-  </div>
+  </aside>
 
-  <div id="deviceCard" class="card hide">
-    <h2>Device</h2>
-    <div class="grid">
-      <label>Name</label>        <div class="kv" id="d_name">-</div>
-      <label>Firmware</label>    <div class="kv" id="d_fw">-</div>
-      <label>Built</label>       <div class="kv" id="d_build">-</div>
-      <label>Running slot</label><div class="kv" id="d_slot">-</div>
-      <label>Battery</label>     <div class="kv" id="d_batt">-</div>
-      <label>Identity gen</label><div class="kv" id="d_ident">-</div>
-    </div>
-  </div>
+  <main class="main">
+    <div class="main-inner">
+      <div id="banner"></div>
 
-  <div id="settingsCard" class="card hide">
-    <h2>Settings</h2>
-    <div class="grid">
-      <label>Transport</label>
-      <select id="s_transport"><option value="0">Classic - Switch Pro</option><option value="1">BLE - NES Advantage</option></select>
-      <label>Button profile</label>
-      <select id="s_profile"></select>
-      <label>Directional mode</label>
-      <select id="s_dirmode"></select>
-    </div>
-    <div class="gap"></div>
-    <div class="row" style="margin-top:6px">
-      <button id="applyBtn" class="accent2">Apply &amp; reboot</button>
-      <button id="forgetBtn">Forget host / re-pair</button>
-      <button id="rebootBtn">Reboot</button>
-    </div>
-    <p class="muted" style="font-size:12px;margin:12px 0 0">
-      Changing transport or forgetting the host reboots the device, which drops this BLE link.
-    </p>
-  </div>
+      <!-- ============ Disconnected ============ -->
+      <div id="connectView">
+        <div class="connect">
+          <div class="slot" aria-hidden="true"></div>
+          <h2>Connect your NES Advantage</h2>
+          <p>Put the controller into config mode, then pair over Bluetooth to test every button live,
+            tune how it behaves, and update firmware. Settings save to the device.</p>
+          <ol class="steps">
+            <li><span class="n">1</span><span>On the stick, hold <kbd>A</kbd> + <kbd>B</kbd> + <kbd>Select</kbd> for 5 seconds. The blue LED blinks while it waits.</span></li>
+            <li><span class="n">2</span><span>Click Connect and pick <b>NES Advantage Config</b>.</span></li>
+          </ol>
+          <button id="connect" class="btn btn-primary btn-lg">Connect over Bluetooth</button>
+          <div class="req">
+            Use <b>Chrome</b> or <b>Edge</b> on desktop or Android. On <b>iPhone</b>, Safari
+            can't do Web Bluetooth, so use a Web BLE browser like
+            <a href="https://apps.apple.com/us/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener noreferrer">Bluefy</a>
+            or <a href="https://apps.apple.com/us/app/ble-link-web-ble-browser/id6468414672" target="_blank" rel="noopener noreferrer">BLE-Link</a>.
+            To leave config mode without a browser, hold <kbd>Start</kbd> ~3 s on the stick.
+          </div>
+        </div>
+      </div>
 
-  <div id="otaCard" class="card hide">
-    <h2>Firmware update (OTA)</h2>
-    <div class="row">
-      <input type="file" id="otaFile" accept=".bin" />
-    </div>
-    <p class="drophint">Or drag and drop a firmware <code>.bin</code> onto this card.</p>
-    <div class="gap"></div>
-    <div id="otaMeta" class="muted kv" style="font-size:12px"></div>
-    <div class="gap"></div>
-    <div class="bar"><i id="otaBar"></i></div>
-    <div class="row" style="justify-content:space-between;margin-top:8px">
-      <span id="otaStatus" class="muted" style="font-size:13px">Select a firmware .bin to begin.</span>
-      <span id="otaRate" class="muted kv" style="font-size:12px"></span>
-    </div>
-    <div class="gap"></div>
-    <div class="row">
-      <button id="otaStartBtn" class="primary" disabled>Flash firmware</button>
-      <button id="otaAbortBtn" disabled>Abort</button>
-    </div>
-  </div>
+      <!-- ============ Connected ============ -->
+      <fieldset id="panel" hidden style="border:0;padding:0;margin:0;min-width:0">
 
-  <div class="card">
-    <h2>Log</h2>
-    <div id="log"></div>
-  </div>
+        <!-- ---------- TEST ---------- -->
+        <section class="tab-panel stack" data-tab="test" role="tabpanel">
+
+          <div class="screen tester screwed" id="tester" data-live="0">
+            <div class="tester-head">
+              <span class="live"><span class="dot"></span>Controller test</span>
+              <span class="who">Player <span id="whoNum">1</span></span>
+            </div>
+
+            <div class="pad-area">
+              <div class="dpad" aria-label="D-pad">
+                <div class="k up"    data-btn="up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12M6 12l6-6 6 6"/></svg></div>
+                <div class="k left"  data-btn="left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 12H6M12 6l-6 6 6 6"/></svg></div>
+                <div class="k hub"></div>
+                <div class="k right" data-btn="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h12M12 6l6 6-6 6"/></svg></div>
+                <div class="k down"  data-btn="down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 18V6M6 12l6 6 6-6"/></svg></div>
+              </div>
+
+              <div class="center">
+                <div class="ss">
+                  <div class="cap" data-btn="select">Select</div>
+                  <div class="cap" data-btn="start">Start</div>
+                </div>
+                <div class="pswitch" aria-label="Player select switch">
+                  <span id="p1" class="sel">P1</span><span id="p2">P2</span>
+                </div>
+              </div>
+
+              <div class="face">
+                <div class="abtn" data-btn="b">B</div>
+                <div class="abtn" data-btn="a">A</div>
+              </div>
+            </div>
+
+            <div class="turbo-row">
+              <div class="turbo">
+                <div class="tlabel"><b>Turbo B</b><span class="hz" id="hzB">0 Hz</span></div>
+                <div class="segs" id="segB"></div>
+              </div>
+              <div class="turbo">
+                <div class="tlabel"><b>Turbo A</b><span class="hz" id="hzA">0 Hz</span></div>
+                <div class="segs" id="segA"></div>
+              </div>
+            </div>
+
+            <p class="tester-note" id="testerNote">Press buttons on the stick, they light up here. Flick the turbo dials to see the rate.</p>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h2>Battery</h2><span class="hint" id="battHint"></span></div>
+            <div class="batt-panel">
+              <div class="cell" id="battCell" data-state="absent" data-charging="0"><i id="battFill"></i></div>
+              <div class="batt-read">
+                <span class="big" id="battBig">--</span>
+                <span class="sub" id="battSub">reading...</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- CONFIGURE ---------- -->
+        <section class="tab-panel stack" data-tab="configure" role="tabpanel" hidden>
+          <div class="panel">
+            <div class="panel-head"><h2>Controller settings</h2></div>
+            <div class="field">
+              <label for="s_transport">Transport</label>
+              <select id="s_transport">
+                <option value="0">Classic - Switch Pro</option>
+                <option value="1">BLE - NES Advantage</option>
+              </select>
+              <label for="s_profile">Button profile</label>
+              <select id="s_profile"></select>
+              <label for="s_dirmode">Directional mode</label>
+              <select id="s_dirmode"></select>
+            </div>
+            <p class="note" style="margin-top:0.9rem">Use <b>Apply &amp; reboot</b> (bottom left) to save.</p>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h2>Device</h2></div>
+            <div class="meta">
+              <div class="kv"><span class="k">Name</span><span class="v" id="d_name">-</span></div>
+              <div class="kv"><span class="k">Firmware</span><span class="v" id="d_fw">-</span></div>
+              <div class="kv"><span class="k">Built</span><span class="v" id="d_build">-</span></div>
+              <div class="kv"><span class="k">Running slot</span><span class="v" id="d_slot">-</span></div>
+              <div class="kv"><span class="k">Identity gen</span><span class="v" id="d_ident">-</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- SYSTEM ---------- -->
+        <section class="tab-panel stack" data-tab="system" role="tabpanel" hidden>
+          <div class="panel">
+            <div class="panel-head"><h2>Firmware update</h2><span class="hint" id="fwRunning">-</span></div>
+            <p class="note" style="margin-bottom:0.8rem">Insert a new <b>firmware.bin</b> to flash over
+              the air. Keep this page open until the device reboots into the new image.</p>
+            <label class="drop" id="fwDrop">
+              <input type="file" id="fwFile" accept=".bin,application/octet-stream">
+              <span id="fwHint">Tap to choose a <b>.bin</b>, or drop a cartridge here</span>
+            </label>
+            <div class="bar" id="fwBarWrap" hidden><i id="fwBar"></i></div>
+            <div class="fw-status"><span id="fwStatus"></span><span class="rate" id="fwRate"></span></div>
+            <div class="actions">
+              <button id="fwFlash" class="btn btn-primary" disabled>Flash firmware</button>
+              <button id="fwAbort" class="btn btn-ghost" disabled>Cancel</button>
+            </div>
+          </div>
+
+          <div class="panel" id="console" hidden>
+            <div class="panel-head"><h2>Device console</h2><button type="button" id="conClear" class="hint-btn">clear</button></div>
+            <p class="note" style="margin-bottom:0.6rem">The device's live log, plus config commands
+              (<code>help</code>, <code>get</code>, <code>batt</code>, <code>profile</code>, ...).</p>
+            <div class="screen" id="conOut" aria-live="polite"></div>
+            <div class="clip-row">
+              <input type="text" id="conInput" placeholder="type a command, e.g. get" autocomplete="off" spellcheck="false" enterkeyhint="send">
+              <button id="conSend" class="btn btn-primary">Send</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h2>Diagnostics</h2></div>
+            <details class="activity"><summary>Activity log</summary><div class="screen" id="log"></div></details>
+          </div>
+        </section>
+
+      </fieldset>
+    </div>
+  </main>
 </div>
 
-<script src="app.js"></script>
+<script type="module">
+"use strict";
+// ---- GATT contract (must match firmware/main/bt_config.cpp) --------------------------------
+const SVC      = '5f1d0000-7c5a-4e2a-9b6e-2a8f3c9d1e00';
+const CH_INFO  = '5f1d0001-7c5a-4e2a-9b6e-2a8f3c9d1e00'; // read+notify  : JSON device info + settings
+const CH_CMD   = '5f1d0002-7c5a-4e2a-9b6e-2a8f3c9d1e00'; // write        : JSON config command
+const CH_OTACTL= '5f1d0003-7c5a-4e2a-9b6e-2a8f3c9d1e00'; // write+notify : OTA control / status
+const CH_OTADATA='5f1d0004-7c5a-4e2a-9b6e-2a8f3c9d1e00'; // write-no-resp : OTA chunks
+const CH_INPUT = '5f1d0005-7c5a-4e2a-9b6e-2a8f3c9d1e00'; // read+notify  : live controller frame
+const CH_LOG   = '5f1d0006-7c5a-4e2a-9b6e-2a8f3c9d1e00'; // notify       : device log stream
+const CH_CON   = '5f1d0007-7c5a-4e2a-9b6e-2a8f3c9d1e00'; // write        : console command line
+const OTA = { BEGIN:0x01, END:0x02, ABORT:0x03, READY:0x10, ACK:0x11, DONE:0x12, ERROR:0x1f };
+
+const $ = (id) => document.getElementById(id);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---- BLE state ----
+let device, infoChr, cmdChr, otaCtlChr, otaDataChr, inputChr, logChr, conChr;
+let info = null;                 // last-parsed INFO JSON
+let otaImage = null, ota = null; // OTA transfer
+let conDec = new TextDecoder();  // streaming decoder for the log
+let sawInput = false;            // an INPUT frame has arrived (its battery supersedes INFO's)
+let connecting = false, manualDisconnect = false;
+
+// ---- logging (activity) ----
+const logEl = $('log');
+const log = (m, cls='') => {
+  logEl.innerHTML += `<span class="${cls}">[${new Date().toLocaleTimeString()}] ${m}</span>\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+};
+const banner = (m) => { const b = $('banner'); b.textContent = m; b.classList.add('show'); };
+
+// ---- turbo meter segments ----
+const SEG_N = 12, TURBO_MAX_HZ = 30;
+for (const id of ['segA', 'segB']) {
+  const el = $(id);
+  for (let i = 0; i < SEG_N; i++) el.appendChild(document.createElement('i'));
+}
+function paintTurbo(segId, hzId, hz) {
+  const lit = Math.min(SEG_N, Math.round(hz / TURBO_MAX_HZ * SEG_N));
+  const segs = $(segId).children;
+  for (let i = 0; i < SEG_N; i++) segs[i].classList.toggle('lit', i < lit);
+  const o = $(hzId); o.textContent = `${hz} Hz`; o.classList.toggle('hot', hz > 0);
+}
+
+// ---- live INPUT frame ----
+// [0]tag [1]player [2]buttons(bit0 A,1 B,2 Sel,3 Start,4 Up,5 Down,6 Left,7 Right)
+// [3]turboA Hz [4]turboB Hz [5]battery% (0xff absent) [6]battery flags(1 chg,2 full,4 ext)
+const BTN_BIT = { a:0, b:1, select:2, start:3, up:4, down:5, left:6, right:7 };
+const btnEls = {};
+document.querySelectorAll('[data-btn]').forEach((el) => { btnEls[el.dataset.btn] = el; });
+let inputLast = 0;
+
+function onInput(dv) {
+  if (dv.byteLength < 7 || dv.getUint8(0) !== 0x01) return;
+  sawInput = true;
+  inputLast = performance.now();
+  const player = dv.getUint8(1), mask = dv.getUint8(2);
+  const hzA = dv.getUint8(3), hzB = dv.getUint8(4);
+  const batt = dv.getUint8(5), bflags = dv.getUint8(6);
+
+  for (const [name, bit] of Object.entries(BTN_BIT))
+    btnEls[name].classList.toggle('on', (mask & (1 << bit)) !== 0);
+
+  $('whoNum').textContent = player + 1;
+  $('p1').classList.toggle('sel', player === 0);
+  $('p2').classList.toggle('sel', player === 1);
+  $('playerText').textContent = 'P' + (player + 1);
+  $('playerChip').dataset.on = '1';
+
+  paintTurbo('segA', 'hzA', hzA);
+  paintTurbo('segB', 'hzB', hzB);
+  paintBattery(batt === 0xff ? null : batt, bflags);
+}
+
+// mark the tester "live" while frames are arriving
+setInterval(() => { $('tester').dataset.live = (performance.now() - inputLast < 700) ? '1' : '0'; }, 300);
+
+// ---- battery gauge ----
+function paintBattery(pct, flags) {
+  const cell = $('battCell'), fill = $('battFill');
+  const charging = (flags & 1) !== 0, full = (flags & 2) !== 0;
+  cell.dataset.charging = charging ? '1' : '0';
+  if (pct == null) {
+    cell.dataset.state = 'absent';
+    $('battBig').textContent = '--';
+    $('battSub').textContent = 'no cell installed';
+    $('battHint').textContent = 'absent';
+    return;
+  }
+  fill.style.transform = `scaleX(${Math.max(0, Math.min(100, pct)) / 100})`;
+  cell.dataset.state = pct < 20 ? 'low' : pct < 50 ? 'warn' : 'ok';
+  $('battBig').textContent = pct + '%';
+  $('battHint').textContent = '';
+  $('battSub').innerHTML = full ? '<b>full</b>' : charging ? '<b>charging</b>' : (pct < 20 ? 'low' : 'on battery');
+}
+
+// ---- device info / settings ----
+function onInfo(dv) {
+  const json = new TextDecoder().decode(dv);
+  try { info = JSON.parse(json); } catch (e) { log('bad INFO json: ' + json, 'err-t'); return; }
+  $('d_name').textContent  = info.name ?? '-';
+  $('d_fw').textContent    = info.fw ?? '-';
+  $('d_build').textContent = info.build ?? '-';
+  $('d_slot').textContent  = info.slot ?? '-';
+  $('d_ident').textContent = info.ident ?? '-';
+  $('fwRunning').textContent = info.fw ? `running v${info.fw} - ${info.slot ?? ''}` : '';
+  if (!sawInput) paintBattery((info.batt == null || info.batt < 0) ? null : info.batt, 0);
+  $('s_transport').value = String(info.transport ?? 0);
+  fillProfileLists();
+  log('device info updated', 'dim-t');
+}
+
+function fillProfileLists() {
+  if (!info) return;
+  const t = parseInt($('s_transport').value, 10);
+  const profs = (info.profiles && info.profiles[t]) || [];
+  const dirs  = (info.dirmodes && info.dirmodes[t]) || [];
+  fillSelect($('s_profile'), profs, t === info.transport ? info.profile : 0);
+  fillSelect($('s_dirmode'), dirs,  t === info.transport ? info.dirmode : 0);
+}
+function fillSelect(sel, items, selected) {
+  sel.innerHTML = '';
+  items.forEach((name, i) => {
+    const o = document.createElement('option');
+    o.value = String(i); o.textContent = `${i + 1}. ${name}`;
+    if (i === selected) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+$('s_transport').addEventListener('change', fillProfileLists);
+
+async function sendCmd(obj) {
+  if (!cmdChr) return;
+  await cmdChr.writeValue(new TextEncoder().encode(JSON.stringify(obj)));
+  log('sent ' + JSON.stringify(obj), 'dim-t');
+}
+$('apply').onclick = async () => {
+  try {
+    await sendCmd({ transport: parseInt($('s_transport').value, 10) });
+    await sendCmd({ profile:   parseInt($('s_profile').value, 10) });
+    await sendCmd({ dirmode:   parseInt($('s_dirmode').value, 10) });
+    const s = $('savedMsg'); s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 1600);
+    log('settings written; rebooting device', 'ok-t');
+    await sendCmd({ action: 'reboot' });
+  } catch (e) { log('apply failed: ' + e, 'err-t'); }
+};
+
+// ---- device console (LOG notify + CONSOLE write) ----
+function conPrint(text) {
+  const el = $('conOut');
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+  el.textContent += text;
+  if (el.textContent.length > 20000) el.textContent = el.textContent.slice(-16000);
+  if (atBottom) el.scrollTop = el.scrollHeight;
+}
+function onLog(dv) { conPrint(conDec.decode(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength), { stream: true })); }
+async function conSend() {
+  const inp = $('conInput'), line = inp.value.trim();
+  if (!line || !conChr) return;
+  try { await conChr.writeValueWithoutResponse(new TextEncoder().encode(line.slice(0, 150))); inp.value = ''; }
+  catch (e) { conPrint(`\n[send failed: ${e}]\n`); }
+}
+$('conSend').onclick = conSend;
+$('conClear').onclick = () => { $('conOut').textContent = ''; };
+$('conInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); conSend(); } });
+
+// ---- OTA ----
+const dvBytes = (dv) => new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+const u32le = (n) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, n >>> 0, true); return b; };
+function crc32(buf) {
+  let crc = 0xffffffff; const u8 = new Uint8Array(buf);
+  for (let n = 0; n < u8.length; n++) {
+    let c = (crc ^ u8[n]) & 0xff;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function onFwFile(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    otaImage = r.result;
+    const size = otaImage.byteLength, crc = crc32(otaImage);
+    $('fwHint').innerHTML = `<b>${file.name}</b> &middot; ${(size / 1024).toFixed(0)} KB &middot; crc32 0x${crc.toString(16).padStart(8, '0')}`;
+    $('fwFlash').disabled = false;
+    $('fwStatus').textContent = 'Ready to flash.';
+    log(`loaded ${file.name}: ${size} bytes`, 'dim-t');
+  };
+  r.readAsArrayBuffer(file);
+}
+function setOtaActive(active) {
+  $('fwFlash').disabled = active || !otaImage;
+  $('fwAbort').disabled = !active;
+  $('fwFile').disabled = active;
+}
+function resetOtaUi() {
+  ota = null; otaImage = null;
+  $('fwBarWrap').hidden = true; $('fwBar').style.transform = 'scaleX(0)';
+  $('fwStatus').textContent = ''; $('fwRate').textContent = '';
+  $('fwHint').innerHTML = 'Tap to choose a <b>.bin</b>, or drop a cartridge here';
+  $('fwFile').value = ''; $('fwFile').disabled = false;
+  $('fwFlash').disabled = true; $('fwAbort').disabled = true;
+}
+function fwProgress() {
+  const pct = Math.floor(ota.acked / ota.size * 100);
+  $('fwBar').style.transform = `scaleX(${ota.acked / ota.size})`;
+  const dt = (performance.now() - ota.t0) / 1000;
+  $('fwStatus').textContent = `Flashing ${pct}%`;
+  $('fwRate').textContent = dt > 0 ? `${(ota.acked / dt / 1024).toFixed(1)} KiB/s` : '';
+}
+const waitAck = () => new Promise((res) => ota.waiters.push(res));
+function onOtaStatus(dv) {
+  const code = dv.getUint8(0);
+  if (!ota) return;
+  if (code === OTA.READY) {
+    if (dv.byteLength >= 9) { ota.chunk = dv.getUint32(1, true); ota.window = dv.getUint32(5, true); }
+    log(`device ready, chunk ${ota.chunk}B, window ${ota.window}B`, 'dim-t');
+    pumpOta();
+  } else if (code === OTA.ACK) {
+    ota.acked = dv.getUint32(1, true);
+    const w = ota.waiters; ota.waiters = []; w.forEach((fn) => fn());
+    fwProgress();
+  } else if (code === OTA.DONE) {
+    $('fwBar').style.transform = 'scaleX(1)';
+    $('fwStatus').textContent = 'Flashed. Device is rebooting into the new firmware.';
+    log('firmware flashed; device rebooting', 'ok-t');
+    setOtaActive(false);
+  } else if (code === OTA.ERROR) {
+    const err = dv.byteLength > 1 ? dv.getUint8(1) : 0;
+    const msg = dv.byteLength > 2 ? new TextDecoder().decode(dvBytes(dv).slice(2)) : '';
+    ota.error = `error ${err} ${msg}`.trim();
+    $('fwStatus').textContent = 'Update failed: ' + ota.error;
+    log('OTA ' + ota.error, 'err-t');
+    setOtaActive(false);
+  }
+}
+async function startOta() {
+  if (!otaImage || !otaCtlChr || !otaDataChr) return;
+  const size = otaImage.byteLength, crc = crc32(otaImage);
+  ota = { size, crc, sent: 0, acked: 0, chunk: 240, window: 8192, t0: performance.now(), waiters: [], error: null, ended: false };
+  setOtaActive(true);
+  $('fwBarWrap').hidden = false; $('fwBar').style.transform = 'scaleX(0)'; $('fwRate').textContent = '';
+  $('fwStatus').textContent = 'Preparing (device erases the inactive slot)';
+  log(`OTA begin: ${size} bytes, crc32 0x${crc.toString(16).padStart(8, '0')}`, 'dim-t');
+  const begin = new Uint8Array(9); begin[0] = OTA.BEGIN; begin.set(u32le(size), 1); begin.set(u32le(crc), 5);
+  try { await otaCtlChr.writeValue(begin); }
+  catch (e) { $('fwStatus').textContent = 'Could not start: ' + e; log('OTA begin failed: ' + e, 'err-t'); setOtaActive(false); }
+}
+async function pumpOta() {
+  const u8 = new Uint8Array(otaImage), chunk = Math.min(ota.chunk, 512);
+  try {
+    while (ota.sent < ota.size && !ota.error) {
+      while (ota.sent - ota.acked >= ota.window && !ota.error) await waitAck();
+      const end = Math.min(ota.sent + chunk, ota.size);
+      await otaDataChr.writeValueWithoutResponse(u8.subarray(ota.sent, end));
+      ota.sent = end;
+    }
+    if (ota.error) return;
+    while (ota.acked < ota.size && !ota.error) await waitAck();
+    log('all data sent; finalizing', 'dim-t');
+    $('fwBar').style.transform = 'scaleX(1)';
+    $('fwStatus').textContent = 'Verifying and rebooting into the new firmware. Reconnect in a moment.';
+    $('fwRate').textContent = ''; ota.ended = true; setOtaActive(false);
+    await otaCtlChr.writeValue(new Uint8Array([OTA.END]));
+  } catch (e) {
+    if (ota && ota.ended) { log('device rebooted into new firmware', 'ok-t'); return; }
+    log('transfer failed: ' + e, 'err-t'); $('fwStatus').textContent = 'Transfer failed: ' + e; setOtaActive(false);
+  }
+}
+async function abortOta() {
+  try { if (otaCtlChr) await otaCtlChr.writeValue(new Uint8Array([OTA.ABORT])); } catch {}
+  if (ota) ota.error = 'cancelled';
+  $('fwStatus').textContent = 'Cancelled.'; setOtaActive(false); log('update cancelled', 'dim-t');
+}
+$('fwFile').addEventListener('change', (e) => onFwFile(e.target.files[0]));
+$('fwFlash').onclick = startOta;
+$('fwAbort').onclick = abortOta;
+{
+  const drop = $('fwDrop');
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { const f = e.dataTransfer?.files[0]; if (f) onFwFile(f); });
+}
+
+// ---- section nav (view-transition crossfade) ----
+function showTab(name) {
+  const apply = () => {
+    for (const p of document.querySelectorAll('.tab-panel')) p.hidden = p.dataset.tab !== name;
+    for (const t of document.querySelectorAll('.nav .tab')) t.setAttribute('aria-selected', String(t.dataset.tab === name));
+  };
+  if (document.startViewTransition && !reduceMotion) document.startViewTransition(apply);
+  else apply();
+}
+for (const t of document.querySelectorAll('.nav .tab')) t.addEventListener('click', () => showTab(t.dataset.tab));
+
+// ---- connection ----
+function setStatus(state, label) { const p = $('status'); p.dataset.state = state; p.querySelector('.label').textContent = label; }
+function setConnected(on) {
+  $('connectView').hidden = on; $('panel').hidden = !on; $('tabs').hidden = !on; $('railFoot').hidden = !on;
+  $('disconnect').disabled = !on;
+  if (on) {
+    setStatus('connected', 'Connected'); showTab('test');
+    $('panel').classList.add('panel-in'); setTimeout(() => $('panel').classList.remove('panel-in'), 700);
+  } else {
+    setStatus('disconnected', 'Not connected');
+    if (ota) ota.error = 'disconnected';
+    infoChr = cmdChr = otaCtlChr = otaDataChr = inputChr = logChr = conChr = null;
+    info = null; sawInput = false;
+    $('playerChip').dataset.on = '0';
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function withTimeout(p, ms, label) {
+  p.catch(() => {});
+  return Promise.race([p, sleep(ms).then(() => { throw new Error(label + ' timed out'); })]);
+}
+async function retryOp(fn, label, tries = 3, delay = 300) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try { return await fn(); }
+    catch (e) { last = e; log(`${label} attempt ${i + 1}/${tries} failed: ${e.message || e}`, 'dim-t'); await sleep(delay); }
+  }
+  throw last;
+}
+
+function onInfoEvt(e) { onInfo(e.target.value); }
+function onInputEvt(e) { onInput(e.target.value); }
+function onLogEvt(e) { onLog(e.target.value); }
+function onOtaEvt(e) { onOtaStatus(e.target.value); }
+
+// The first GATT connect on Chrome/Linux (BlueZ) often throws a transient NetworkError; the device
+// is already chosen, so retry the whole connect+discovery with a disconnect-reset between tries.
+async function establishGatt(dev) {
+  let last;
+  for (let i = 0; i < 6; i++) {
+    try {
+      if (i > 0 && dev.gatt.connected) { try { dev.gatt.disconnect(); } catch {} await sleep(250); }
+      const server = await withTimeout(dev.gatt.connect(), 9000, 'connect');
+      const svc = await withTimeout(server.getPrimaryService(SVC), 7000, 'service discovery');
+      infoChr = await svc.getCharacteristic(CH_INFO);
+      cmdChr  = await svc.getCharacteristic(CH_CMD);
+      return svc;
+    } catch (e) { last = e; log(`connect attempt ${i + 1}/6 failed: ${e.message || e}`, 'dim-t'); await sleep(300 + i * 250); }
+  }
+  throw last;
+}
+
+async function setupServices(svc) {
+  infoChr.addEventListener('characteristicvaluechanged', onInfoEvt);
+  await retryOp(async () => { await infoChr.startNotifications(); onInfo(await infoChr.readValue()); }, 'info');
+
+  try {
+    otaCtlChr  = await svc.getCharacteristic(CH_OTACTL);
+    otaDataChr = await svc.getCharacteristic(CH_OTADATA);
+    resetOtaUi();
+    await otaCtlChr.startNotifications();
+    otaCtlChr.addEventListener('characteristicvaluechanged', onOtaEvt);
+  } catch { otaCtlChr = otaDataChr = null; $('fwDrop').style.display = 'none'; $('fwFlash').disabled = true; $('fwRunning').textContent = 'not supported'; }
+
+  try {
+    inputChr = await svc.getCharacteristic(CH_INPUT);
+    await inputChr.startNotifications();
+    inputChr.addEventListener('characteristicvaluechanged', onInputEvt);
+    onInput(await inputChr.readValue());
+    log('controller test attached', 'dim-t');
+  } catch { inputChr = null; $('testerNote').textContent = 'Live input not available on this firmware.'; }
+
+  try {
+    conChr = await svc.getCharacteristic(CH_CON);
+    logChr = await svc.getCharacteristic(CH_LOG);
+    conDec = new TextDecoder(); $('conOut').textContent = '';
+    await logChr.startNotifications();
+    logChr.addEventListener('characteristicvaluechanged', onLogEvt);
+    $('console').hidden = false;
+    log('device console attached', 'dim-t');
+  } catch { conChr = logChr = null; $('console').hidden = true; }
+}
+
+async function connectFlow(label) {
+  if (connecting) return;
+  connecting = true;
+  try {
+    $('banner').classList.remove('show');
+    setStatus('connecting', label);
+    const svc = await establishGatt(device);
+    await setupServices(svc);
+    setConnected(true);
+    log('connected', 'ok-t');
+  } finally { connecting = false; }
+}
+async function autoReconnect() {
+  log('link dropped; reconnecting', 'dim-t');
+  try { await connectFlow('Reconnecting'); }
+  catch (e) { setStatus('disconnected', 'Not connected'); banner('Lost the connection and could not get it back. Make sure the stick is in config mode, then press Connect.'); log('auto-reconnect failed: ' + e, 'err-t'); }
+}
+function onDisconnected() {
+  if (connecting) return;   // ignore our own retry-loop disconnects
+  log('device disconnected', 'dim-t');
+  setConnected(false);
+  if (!manualDisconnect && device) autoReconnect();
+  manualDisconnect = false;
+}
+
+$('connect').onclick = async () => {
+  if (!navigator.bluetooth) { banner('This browser has no Web Bluetooth. Open this page in Chrome or Edge on desktop or Android.'); return; }
+  try {
+    manualDisconnect = false;
+    if (!device) {
+      setStatus('connecting', 'Connecting'); log('requesting device', 'dim-t');
+      device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }], optionalServices: [SVC] });
+      device.addEventListener('gattserverdisconnected', onDisconnected);
+    }
+    await connectFlow('Connecting');
+  } catch (e) {
+    setStatus('disconnected', 'Not connected');
+    if (e && e.name === 'NotFoundError') log('connection cancelled', 'dim-t');
+    else { log('connect failed: ' + e, 'err-t'); banner('Could not connect. Make sure the stick is in config mode and nearby, then press Connect again.'); }
+  }
+};
+$('disconnect').onclick = () => { manualDisconnect = true; if (device?.gatt.connected) device.gatt.disconnect(); else setConnected(false); };
+
+// If the browser already remembers this device (granted in a past session), cache it so the first
+// Connect skips the chooser. Behind a flag on some platforms; absence is fine.
+if (navigator.bluetooth?.getDevices) {
+  navigator.bluetooth.getDevices().then((ds) => {
+    const d = ds.find((x) => x.name === 'NES Advantage Config');
+    if (d && !device) { device = d; device.addEventListener('gattserverdisconnected', onDisconnected); }
+  }).catch(() => {});
+}
+
+// ---- availability ----
+if (!navigator.bluetooth) {
+  banner('Web Bluetooth is not available. Use Chrome or Edge; on Linux you may need chrome://flags/#enable-experimental-web-platform-features.');
+  $('connect').disabled = true;
+  log('navigator.bluetooth missing', 'err-t');
+} else {
+  navigator.bluetooth.getAvailability?.().then((a) => log(`Web Bluetooth available: adapter ${a ? 'present' : 'NOT present'}`, a ? 'ok-t' : 'dim-t')).catch(() => {});
+}
+log('page loaded', 'dim-t');
+</script>
 </body>
 </html>
+</content>
