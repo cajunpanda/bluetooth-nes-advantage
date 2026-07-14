@@ -143,20 +143,50 @@ Kconfig, so it must be patched at build time. With this, 8BitDo holds a stable c
 Switch is unaffected. `esp_bt_gap_set_qos()` alone does not fix it; it only momentarily wakes the
 link before BTA re-sniffs.
 
-## Connection direction: stay passive, let the host initiate
+## Connection direction: passive first, then a bounded device-initiated "kick"
 
-After authentication, the host opens the two HID L2CAP channels (control PSM `0x11`, interrupt
-`0x13`). Every target host initiates this itself: the Switch Change Grip/Order screen, the 8BitDo
-Retro Receiver, and the 8BitDo USB Wireless Adapter all page the device and open the channels. So
-the device stays purely passive: connectable and discoverable, accepting the incoming connection. Do
-not call `esp_bt_hid_device_connect()`.
+After authentication, the two HID L2CAP channels (control PSM `0x11`, interrupt `0x13`) must open.
+Hosts differ in who they expect to open them:
 
-`esp_bt_hid_device_connect()` puts Bluedroid's HID-device state machine into an initiator state
-(`HID_ERR_CONN_IN_PROCESS`). When the host then sends its own incoming connection it lands on
-generic L2CAP instead of the HID layer, the config handshake never promotes to a HID connection, and
-the link is torn down after a config timeout. `bt_pro.cpp` therefore never device-initiates; even on
-a reconnect boot with a stored bond it only seeds the peer address (for QoS) and waits. The
-tradeoff is that a Switch console will not auto-reconnect on its own; re-pair from Change Grip/Order.
+- The Switch Change Grip/Order screen and the 8BitDo Retro Receiver open both channels themselves,
+  promptly after auth.
+- The 8BitDo USB Adapter 2 and BlueRetro mimic the console's *reconnect* role: they expect the
+  controller to behave like a real Pro (which advertises `HIDReconnectInitiate` and opens the
+  channels itself). If the device stays passive they wait forever and give up after ~30 s.
+
+So `bt_pro.cpp` starts passive (host-initiated connects work exactly as before) and arms a one-shot
+"kick" timer on GAP auth complete, on a bonded boot, and on disconnect: if the host has not opened
+HID within a 3 s grace window, the device calls `esp_bt_hid_device_connect()` itself, with bounded
+retries (4 x 5 s) before falling back to passive so a dead host cannot pin the radio awake. A
+successful CONNECT cancels the kick. The grace window also avoids the classic initiator-state trap:
+device-initiating *while* a host opens its own connection strands the host's incoming channels on
+generic L2CAP (`HID_ERR_CONN_IN_PROCESS`), so the kick only fires after the host has stayed quiet.
+
+Three Bluedroid behaviors break this flow against the 8BitDo USB Adapter 2 and are fixed at build
+time by `tools/patch_bluedroid_hid_intr.py` (companion to the sniff patch below):
+
+1. **MITM link-key "upgrade" wedges the ESP32 controller.** The HID service registers with
+   `AUTHENTICATE|ENCRYPT`; in SSP mode btm silently adds a MITM requirement. We pair Just Works
+   (unauthenticated link key), and when a host advertises IO caps that make an authenticated key
+   theoretically possible (the Adapter 2 does; a console reports NoInputNoOutput and does not),
+   `btm_sec_check_upgrade` deletes the fresh key and re-authenticates the already-encrypted link.
+   The ESP32 controller's LMP encryption pause/resume does not survive this: ACL TX freezes (no
+   Number-of-Completed-Packets, no Encryption Key Refresh Complete; occasionally an
+   `ASSERT_WARN lc_task.c 1556` controller crash), the host never sees our ConnectRsp/ConfigReq,
+   and both sides deadlock until their 30 s timers fire. Fix: register the HID service with
+   `BTA_SEC_NONE` (real Pros use Just-Works keys with no MITM; SSP still authenticates and encrypts
+   the link) and accept the incoming CTRL channel directly instead of via `btm_sec_mx_access_request`.
+2. **Half-open connections are never completed.** Stock Bluedroid only self-originates INTR when it
+   originated CTRL; for a host that opens CTRL and then waits for the controller to open INTR both
+   sides deadlock. Fix: `hidd_conn_initiate()` (reached via the kick) now completes a half-open
+   connection - re-sends the CTRL ConfigReq if config never finished, then originates INTR.
+3. **MTU**: `HID_DEV_MTU_SIZE` raised 64 -> 640 to match a real Pro Controller's L2CAP config.
+
+Verified end-to-end against the 8BitDo USB Adapter 2 (fresh pair and resume): full handshake
+(0x30/0x48/0x03/0x40), adapter re-enumerates on USB as an active receiver (`2dc8:3106`), input
+events flow. The kick also gives the stored-bond boot path an active reconnect (a real-Pro
+behavior), though the Adapter 2 itself refuses incoming pages (`0x0d`) and instead pages us on its
+own retry schedule.
 
 ## ESP-IDF / Bluedroid notes
 

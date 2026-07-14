@@ -18,6 +18,10 @@
 #include "bt_transport.hpp"
 #include "settings.hpp"
 
+#if defined(CONFIG_BT_HCI_LOG_DEBUG_EN)
+#include "hci_log/bt_hci_log.h"
+#endif
+
 static const char* TAG = "console";
 
 // `batt`: VBAT + coarse SoC + charge status (settled read, ~300 ms).
@@ -151,6 +155,14 @@ static int cmd_reboot(int, char**) {
 }
 
 // `heap`: free-heap readout.
+#if defined(CONFIG_BT_HCI_LOG_DEBUG_EN)
+// `hcilog`: dump the raw HCI packet ring buffer (bench debug builds only).
+static int cmd_hcilog(int, char**) {
+    bt_hci_log_hci_data_show();
+    return 0;
+}
+#endif
+
 static int cmd_heap(int, char**) {
     printf("heap: free=%u min_ever=%u\n",
            (unsigned)esp_get_free_heap_size(), (unsigned)esp_get_minimum_free_heap_size());
@@ -178,6 +190,9 @@ static void register_cmds() {
     reg("autosleep", "Idle/disconnect auto-sleep: autosleep on|off",    cmd_autosleep);
     reg("reboot",    "Restart the firmware",                          cmd_reboot);
     reg("heap",      "Free-heap readout",                             cmd_heap);
+#if defined(CONFIG_BT_HCI_LOG_DEBUG_EN)
+    reg("hcilog",    "Dump raw HCI packet ring buffer (debug builds)", cmd_hcilog);
+#endif
 }
 
 esp_err_t console_start() {

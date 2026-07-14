@@ -29,6 +29,7 @@
 #include "esp_gap_bt_api.h"
 #include "esp_hidd.h"
 #include "esp_hid_common.h"
+#include "esp_timer.h"
 #if defined(CONFIG_BT_SDP_COMMON_ENABLED)
 #include "esp_sdp_api.h"
 #endif
@@ -61,6 +62,48 @@ extern "C" esp_err_t esp_bt_hid_device_connect(esp_bd_addr_t bd_addr);
 extern "C" esp_err_t esp_bt_hid_device_virtual_cable_unplug(void);
 
 constexpr uint32_t kQosTpoll = 0x10;   // ~10 ms; pins the ACL link active (out of sniff)
+
+// --- Device-initiated HID connect ("kick") -------------------------------------------------------
+// A real Pro Controller advertises HIDReconnectInitiate and opens the HID L2CAP channels itself.
+// Hosts that mimic the console's reconnect role (8BitDo USB Adapter 2, BlueRetro) therefore pair at
+// GAP level and then wait forever for us to connect; only the Switch's Change Grip/Order screen and
+// the older 8BitDo Retro Receiver initiate from their side. So: stay passive for a grace window
+// (host-initiated still wins, as before), then open the channels ourselves, with bounded retries so
+// a dead host can't pin the radio awake. See docs/switch_pro_protocol.md "Connection direction".
+esp_timer_handle_t s_kick_timer = nullptr;
+uint8_t s_kick_attempts = 0;
+constexpr uint8_t  kKickMaxAttempts  = 4;
+constexpr uint64_t kKickGraceUs      = 3 * 1000 * 1000;   // host gets 3 s to initiate first
+constexpr uint64_t kKickRetryUs      = 5 * 1000 * 1000;
+
+void hid_kick_cb(void*) {
+    if (s_connected) return;
+    static const esp_bd_addr_t kZeroAddr = {0};
+    if (memcmp(s_peer, kZeroAddr, sizeof(esp_bd_addr_t)) == 0) return;
+    if (s_kick_attempts >= kKickMaxAttempts) {
+        ESP_LOGW(TAG, "device-initiated HID: giving up after %u attempts, back to passive",
+                 s_kick_attempts);
+        return;
+    }
+    s_kick_attempts++;
+    ESP_LOGI(TAG, "host has not opened HID, device-initiating (attempt %u/%u)",
+             s_kick_attempts, kKickMaxAttempts);
+    esp_err_t err = esp_bt_hid_device_connect(s_peer);
+    if (err != ESP_OK) ESP_LOGW(TAG, "esp_bt_hid_device_connect: %s", esp_err_to_name(err));
+    esp_timer_start_once(s_kick_timer, kKickRetryUs);     // retry unless CONNECT stops us
+}
+
+void arm_hid_kick(bool reset_attempts) {
+    if (!s_kick_timer) return;
+    if (reset_attempts) s_kick_attempts = 0;
+    esp_timer_stop(s_kick_timer);
+    esp_timer_start_once(s_kick_timer, kKickGraceUs);
+}
+
+void cancel_hid_kick() {
+    if (s_kick_timer) esp_timer_stop(s_kick_timer);
+    s_kick_attempts = 0;
+}
 
 // --- Profiles: which Pro buttons the NES face buttons produce ----------------------------------
 // Select/Start always map to Minus/Plus. Directions are handled by the directional mode, not here.
@@ -288,6 +331,7 @@ void bt_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t* param) {
             ESP_LOGI(TAG, "GAP auth OK: %s, waiting for host to open HID connection",
                      param->auth_cmpl.device_name);
             memcpy(s_peer, param->auth_cmpl.bda, sizeof(esp_bd_addr_t));
+            arm_hid_kick(true);   // if the host stays quiet (8BitDo Adapter 2 style), we initiate
         } else {
             ESP_LOGE(TAG, "GAP auth FAILED: stat=%d", param->auth_cmpl.stat);
         }
@@ -336,19 +380,23 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
         ESP_LOGI(TAG, "HIDD START (status=%d) -> connectable + discoverable", p->start.status);
         esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
         s_link = bt::LINK_ADVERTISING;
-        // Stay passive for both fresh pair and reconnect: the host opens the HID L2CAP channels to us
-        // and we accept. This is how every target host connects: the Switch "Change Grip/Order"
-        // screen, the 8BitDo Retro Receiver, and the 8BitDo USB Wireless Adapter all page us and
-        // initiate the HID connection. Do not device-initiate (esp_bt_hid_device_connect calls
-        // HID_DevPlugDevice): that puts Bluedroid's HID-device state machine into an initiator state,
-        // which then strands the host's own incoming HID connection (it lands on generic L2CAP, never
-        // promotes to HID, and the link is torn down after a config timeout). See
-        // docs/switch_pro_protocol.md "Connection direction".
+        // Start passive for both fresh pair and reconnect: hosts that initiate HID themselves (the
+        // Switch "Change Grip/Order" screen, the 8BitDo Retro Receiver) get the grace window and
+        // connect exactly as before. Hosts that mimic the console's reconnect role and wait for the
+        // controller to open the channels (8BitDo USB Adapter 2, BlueRetro, a console after a power
+        // cycle) get the bounded device-initiated kick (arm_hid_kick). Device-initiating puts
+        // Bluedroid's HID-device state machine into an initiator state that can strand a host's own
+        // simultaneous incoming HID connection, which is why the kick only fires after the host has
+        // stayed quiet for the whole grace window. See docs/switch_pro_protocol.md
+        // "Connection direction".
         if (s_have_bond) {
             // On a reconnect there may be no fresh GAP auth before CONNECT, so seed the peer from the
             // bond now, otherwise the QoS request on CONNECT targets a zero address and fails (0x7).
+            // The seeded peer also gives the boot-time kick its target: a host that never pages us
+            // (8BitDo Adapter 2) is re-joined by us paging it.
             memcpy(s_peer, s_bonded, sizeof(esp_bd_addr_t));
-            ESP_LOGI(TAG, "reconnect: discoverable, waiting for stored host to initiate");
+            ESP_LOGI(TAG, "reconnect: discoverable, host may initiate or we kick after grace");
+            arm_hid_kick(true);
         } else {
             ESP_LOGI(TAG, "fresh pair: discoverable, waiting for a host");
         }
@@ -359,11 +407,12 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
         if (p->connect.status == ESP_OK) {
             s_connected = true;
             s_link = bt::LINK_CONNECTED;
+            cancel_hid_kick();
             esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
             esp_bt_gap_set_qos(s_peer, kQosTpoll);
         } else {
             // A failed/torn-down connect leaves the ACL down; re-assert discoverable so the host can
-            // page us again for another try.
+            // page us again for another try (the kick's own retry timer keeps running if armed).
             s_link = bt::LINK_ADVERTISING;
             esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
         }
@@ -383,6 +432,7 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
         s_connected = false;
         s_link = bt::LINK_ADVERTISING;
         esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+        arm_hid_kick(true);   // a power-cycled host waits for us to re-join (fix-list #9)
         break;
     case ESP_HIDD_STOP_EVENT:
         ESP_LOGI(TAG, "HIDD STOP");
@@ -445,6 +495,15 @@ void pro_init() {
     cod.minor = ESP_BT_COD_MINOR_PERIPHERAL_GAMEPAD;
     esp_bt_gap_set_cod(cod, ESP_BT_SET_COD_MAJOR_MINOR);
 
+    const esp_timer_create_args_t kick_args = {
+        .callback = hid_kick_cb,
+        .arg = nullptr,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "hid_kick",
+        .skip_unhandled_events = true,
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&kick_args, &s_kick_timer));
+
     ESP_ERROR_CHECK(esp_hidd_dev_init(&s_hid_config, ESP_HID_TRANSPORT_BT, hidd_cb, &s_dev));
 
 #if defined(CONFIG_BT_SDP_COMMON_ENABLED)
@@ -483,6 +542,7 @@ void pro_forget_host() {
     // new MAC and no bond, so the previously-paired host no longer recognises us; it cannot
     // auto-reconnect to a stale address and skip the handshake.
     ESP_LOGW(TAG, "forget host -> remove bonds + rotate identity + reboot");
+    cancel_hid_kick();
     if (s_connected) esp_bt_hid_device_virtual_cable_unplug();
 
     int nbonds = esp_bt_gap_get_bond_device_num();

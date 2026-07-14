@@ -92,13 +92,20 @@ in [`../web/README.md`](../web/README.md).
 firmware over the air. `sdkconfig.defaults` holds the project Kconfig; key names can drift between
 IDF versions, so reconcile with `menuconfig` if you change IDF.
 
-## Pre-build sniff patch
+## Pre-build Bluedroid patches
 
-The `wroom32` build runs a small pre-build patch, `tools/patch_bluedroid_sniff.py`, that makes
-Bluedroid's Classic HID device behave like a real Pro Controller at the link layer (a slave that
-never initiates sniff). It is required for stable 8BitDo and Switch connections and is a no-op for
-BLE. The patch edits a `const` table in the IDF source, so it has no runtime API and must run at
-build time.
+The `wroom32` build runs two small pre-build patches that make Bluedroid's Classic HID device
+behave like a real Pro Controller; both edit IDF source with no runtime API, so they must run at
+build time, and both are no-ops for BLE.
+
+- `tools/patch_bluedroid_sniff.py`: link-layer power management - a slave that never initiates
+  sniff. Required for stable 8BitDo and Switch connections.
+- `tools/patch_bluedroid_hid_intr.py`: connection setup - no MITM link-key upgrade (which wedges
+  the ESP32 controller's encryption pause/resume), completion of half-open HID connections
+  (hosts like the 8BitDo USB Adapter 2 and BlueRetro open only the control channel and expect the
+  controller to open the interrupt channel, as a real Pro does), and real-Pro L2CAP MTU (640).
+  Required for the 8BitDo USB Adapter 2 (the Switch 2 bridge); see
+  `docs/switch_pro_protocol.md` "Connection direction".
 
 ## Gestures
 

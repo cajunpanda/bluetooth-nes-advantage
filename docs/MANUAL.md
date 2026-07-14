@@ -17,14 +17,16 @@ You can play while charging.
 3. Pair:
    - **Nintendo Switch:** open Controllers, then Change Grip/Order. The stick appears as a Pro
      Controller. The blue LED blinks while pairing and is solid once connected.
-   - **8BitDo Retro Receiver:** put the receiver in pairing mode and wake the stick.
+   - **8BitDo Retro Receiver / USB Adapter 2:** put the receiver in pairing mode and wake the
+     stick. Pairing takes a few seconds (the stick waits ~3 s for the host, then completes the
+     connection itself).
    - **BLE (PC, phone, emulator):** switch to BLE mode, then pair "NES Advantage" from the
      device's Bluetooth menu.
 4. Play. The stick reconnects to the last host automatically on wake.
 
 **Nintendo Switch 2:** direct pairing is not possible for any open controller emulation, because
-the Switch 2 requires a Nintendo-signed device certificate. Use an 8BitDo USB Wireless Adapter in
-the dock; it bridges the stick's Pro Controller emulation to the Switch 2.
+the Switch 2 requires a Nintendo-signed device certificate. Use an 8BitDo USB Wireless Adapter or
+USB Adapter 2 in the dock; it bridges the stick's Pro Controller emulation to the Switch 2.
 
 ## Gestures
 
