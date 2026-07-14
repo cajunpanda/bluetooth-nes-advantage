@@ -18,8 +18,11 @@ You can play while charging.
    - **Nintendo Switch:** open Controllers, then Change Grip/Order. The stick appears as a Pro
      Controller. The blue LED blinks while pairing and is solid once connected.
    - **8BitDo Retro Receiver / USB Adapter 2:** put the receiver in pairing mode and wake the
-     stick. Pairing takes a few seconds (the stick waits ~3 s for the host, then completes the
-     connection itself).
+     stick. Pairing takes a few seconds (the stick waits for the host briefly, then completes
+     the connection itself).
+   - **BlueRetro (BT Classic):** press BlueRetro's pair button and wake the stick. Expect a few
+     connect/disconnect cycles for the first ~20 seconds while BlueRetro's pairing mode settles;
+     the link then holds. (BlueRetro also works over the BLE transport.)
    - **BLE (PC, phone, emulator):** switch to BLE mode, then pair "NES Advantage" from the
      device's Bluetooth menu.
 4. Play. The stick reconnects to the last host automatically on wake.

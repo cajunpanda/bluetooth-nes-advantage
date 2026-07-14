@@ -101,11 +101,13 @@ build time, and both are no-ops for BLE.
 - `tools/patch_bluedroid_sniff.py`: link-layer power management - a slave that never initiates
   sniff. Required for stable 8BitDo and Switch connections.
 - `tools/patch_bluedroid_hid_intr.py`: connection setup - no MITM link-key upgrade (which wedges
-  the ESP32 controller's encryption pause/resume), completion of half-open HID connections
-  (hosts like the 8BitDo USB Adapter 2 and BlueRetro open only the control channel and expect the
-  controller to open the interrupt channel, as a real Pro does), and real-Pro L2CAP MTU (640).
-  Required for the 8BitDo USB Adapter 2 (the Switch 2 bridge); see
-  `docs/switch_pro_protocol.md` "Connection direction".
+  the ESP32 controller's encryption pause/resume), HID PSMs exempt from btm channel-security
+  gating (a connect racing SSP otherwise queues, re-authenticates, and times out refused),
+  completion of half-open HID connections (the 8BitDo USB Adapter 2 opens only the control
+  channel and expects the controller to open the interrupt channel, as a real Pro does),
+  immediate close of zombie channels left by superseded connect attempts, and real-Pro L2CAP MTU
+  (640). Required for the 8BitDo USB Adapter 2 (the Switch 2 bridge) and BlueRetro over BT
+  Classic; see `docs/switch_pro_protocol.md` "Connection direction".
 
 ## Gestures
 

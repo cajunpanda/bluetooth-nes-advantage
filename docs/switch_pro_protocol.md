@@ -162,8 +162,14 @@ successful CONNECT cancels the kick. The grace window also avoids the classic in
 device-initiating *while* a host opens its own connection strands the host's incoming channels on
 generic L2CAP (`HID_ERR_CONN_IN_PROCESS`), so the kick only fires after the host has stayed quiet.
 
-Three Bluedroid behaviors break this flow against the 8BitDo USB Adapter 2 and are fixed at build
-time by `tools/patch_bluedroid_hid_intr.py` (companion to the sniff patch below):
+BlueRetro is a third pattern: it does open both channels itself, but only ~3 s after auth (it runs
+an SDP query first), and it opens CTRL within milliseconds of the SSP link key - before encryption
+has settled. The kick therefore must NOT full-initiate while the host's ACL is already up (the
+host is mid-flow and will open HID itself; racing it strands orphan channels); full-initiate is
+reserved for paging a host whose ACL is down.
+
+Five Bluedroid behaviors break these flows against the 8BitDo USB Adapter 2 and BlueRetro and are
+fixed at build time by `tools/patch_bluedroid_hid_intr.py` (companion to the sniff patch below):
 
 1. **MITM link-key "upgrade" wedges the ESP32 controller.** The HID service registers with
    `AUTHENTICATE|ENCRYPT`; in SSP mode btm silently adds a MITM requirement. We pair Just Works
@@ -179,14 +185,35 @@ time by `tools/patch_bluedroid_hid_intr.py` (companion to the sniff patch below)
 2. **Half-open connections are never completed.** Stock Bluedroid only self-originates INTR when it
    originated CTRL; for a host that opens CTRL and then waits for the controller to open INTR both
    sides deadlock. Fix: `hidd_conn_initiate()` (reached via the kick) now completes a half-open
-   connection - re-sends the CTRL ConfigReq if config never finished, then originates INTR.
-3. **MTU**: `HID_DEV_MTU_SIZE` raised 64 -> 640 to match a real Pro Controller's L2CAP config.
+   connection - re-sends the CTRL ConfigReq if config never finished, then originates INTR - and
+   refuses to full-initiate while the host's ACL is up (see BlueRetro note above).
+3. **The btm channel-security gate re-litigates security per HID L2CAP connect.** A CTRL connect
+   racing SSP pairing gets queued behind "pairing in progress", triggers a redundant local
+   re-authentication, and times out refused (ConnRsp result 2) without the HID layer ever seeing
+   it. Fix: the HID PSMs are now "mode 4 level 0" services (exempt from channel gating, like SDP);
+   SSP still authenticates and encrypts the ACL itself.
+4. **Abandoned originate attempts leave zombie channels.** If our outgoing ConnectReq completes
+   after the host's own connection superseded it, stock code logs "unknown cid" and ignores the
+   open channel; the peer reaps it 16-30 s later and tears the whole session down with it. Fix:
+   close unknown-but-open channels immediately.
+5. **MTU**: `HID_DEV_MTU_SIZE` raised 64 -> 640 to match a real Pro Controller's L2CAP config.
+
+## Input report modes: 0x3F by default, 0x30 on request
+
+A real Pro Controller powers up in simple input mode - report `0x3F` (2 button bytes, hat, four
+16-bit axes), sent on state change - and only streams full `0x30` reports after the host selects
+that mode with subcommand `0x03`. The Switch console and the 8BitDo adapters send `0x03 0x30`
+during their handshake; BlueRetro never sends `0x03` and reads `0x3F` reports. The firmware
+therefore starts every connection in `0x3F` mode (sent on change plus a ~100 ms keepalive) and
+switches to the continuous ~66 Hz `0x30` stream when subcommand `0x03` asks for it.
 
 Verified end-to-end against the 8BitDo USB Adapter 2 (fresh pair and resume): full handshake
 (0x30/0x48/0x03/0x40), adapter re-enumerates on USB as an active receiver (`2dc8:3106`), input
 events flow. The kick also gives the stored-bond boot path an active reconnect (a real-Pro
 behavior), though the Adapter 2 itself refuses incoming pages (`0x0d`) and instead pages us on its
-own retry schedule.
+own retry schedule. Also verified against BlueRetro over BT Classic on a real NES (pair, stable
+link, gameplay); expect connect/disconnect churn for the first ~20 s after BlueRetro's pair button
+while its inquiry mode settles.
 
 ## ESP-IDF / Bluedroid notes
 

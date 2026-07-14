@@ -73,7 +73,12 @@ constexpr uint32_t kQosTpoll = 0x10;   // ~10 ms; pins the ACL link active (out 
 esp_timer_handle_t s_kick_timer = nullptr;
 uint8_t s_kick_attempts = 0;
 constexpr uint8_t  kKickMaxAttempts  = 4;
-constexpr uint64_t kKickGraceUs      = 3 * 1000 * 1000;   // host gets 3 s to initiate first
+// Host grace: long enough that hosts which open both channels themselves (Switch console, 8BitDo
+// Retro Receiver, both well under 1 s) always win and cancel the kick, but short enough to beat
+// BlueRetro, which opens CTRL and waits only ~2 s for the controller's INTR before tearing down
+// and retrying - a 3 s grace loses that race and the two sides then collide (orphan L2CAP channel,
+// subcommand replies lost, link dropped after ~30-60 s, repeat).
+constexpr uint64_t kKickGraceUs      = 1500 * 1000;
 constexpr uint64_t kKickRetryUs      = 5 * 1000 * 1000;
 
 void hid_kick_cb(void*) {
@@ -162,7 +167,8 @@ const uint8_t kProReportMap[] = {
     0x06, 0x00, 0xFF, 0x15, 0x00, 0x26, 0xFF, 0x00, 0x75, 0x08, 0x95, 0x30,
     0x85, 0x30, 0x09, 0x30, 0x81, 0x02,
     0x85, 0x21, 0x09, 0x21, 0x81, 0x02,
-    0x85, 0x01, 0x09, 0x01, 0x91, 0x02,
+    0x85, 0x3F, 0x09, 0x3F, 0x95, 0x0B, 0x81, 0x02,
+    0x85, 0x01, 0x09, 0x01, 0x95, 0x30, 0x91, 0x02,
     0x85, 0x10, 0x09, 0x10, 0x91, 0x02,
     0xC0
 };
@@ -184,6 +190,11 @@ esp_hid_device_config_t s_hid_config = {
 
 // --- Switch Pro report packing + handshake (see docs/switch_pro_protocol.md) -------------------
 uint8_t s_timer = 0;
+// A real Pro Controller powers up in simple input mode (report 0x3F, sent on change) and only
+// streams full 0x30 reports after the host selects that mode with subcommand 0x03. The Switch
+// console and the 8BitDo adapters send 0x03 during their handshake; BlueRetro never does and
+// reads 0x3F reports, dropping a controller that stays silent (~20 s watchdog).
+volatile uint8_t s_input_mode = 0x3F;
 
 const uint8_t kCal603D[] = {
     0xF0,0x07,0x7F, 0xF0,0x07,0x7F, 0xF0,0x07,0x7F,
@@ -277,7 +288,12 @@ void handle_subcommand(const uint8_t* data, size_t len) {
     case 0x10: handle_spi_read(args); break;
     case 0x04: send_reply(0x83, 0x04, kElapsed04, sizeof(kElapsed04)); break;
     case 0x01: send_reply(0x80, 0x01, nullptr, 0); break;
-    case 0x03: send_reply(0x80, 0x03, nullptr, 0); break;
+    case 0x03:
+        // Set input report mode: 0x30 (or 0x31..) = full-report streaming, 0x3F = simple mode.
+        s_input_mode = (args[0] == 0x3F) ? 0x3F : 0x30;
+        ESP_LOGI(TAG, "input mode -> 0x%02x", s_input_mode);
+        send_reply(0x80, 0x03, nullptr, 0);
+        break;
     case 0x08: send_reply(0x80, 0x08, nullptr, 0); break;
     case 0x21: send_reply(0x80, 0x21, nullptr, 0); break;
     case 0x30: send_reply(0x80, 0x30, nullptr, 0); break;
@@ -285,6 +301,29 @@ void handle_subcommand(const uint8_t* data, size_t len) {
     case 0x48: send_reply(0x80, 0x48, nullptr, 0); break;
     default:   send_reply(0x80, subcmd, nullptr, 0); break;
     }
+}
+
+// Simple-mode (0x3F) input report: 2 button bytes, hat, then 4 x 16-bit axes (0x8000 = center).
+void send_3f_report(const ProState& s) {
+    uint8_t b[11] = {0};
+    b[0] = (s.b?0x01:0)|(s.a?0x02:0)|(s.y?0x04:0)|(s.x?0x08:0)|(s.l?0x10:0)|(s.r?0x20:0)|
+           (s.zl?0x40:0)|(s.zr?0x80:0);
+    b[1] = (s.minus?0x01:0)|(s.plus?0x02:0)|(s.l_stick?0x04:0)|(s.r_stick?0x08:0)|
+           (s.home?0x10:0)|(s.capture?0x20:0);
+    static const uint8_t hat_lut[3][3] = {   // [down..up][left..right] -> hat code, 8 = neutral
+        {5, 4, 3},    // down:  down-left, down, down-right
+        {6, 8, 2},    // mid:   left, neutral, right
+        {7, 0, 1},    // up:    up-left, up, up-right
+    };
+    int v = 1 + (s.up ? 1 : 0) - (s.down ? 1 : 0);
+    int h = 1 + (s.right ? 1 : 0) - (s.left ? 1 : 0);
+    b[2] = hat_lut[v][h];
+    auto axis16 = [](int16_t a) -> uint16_t { return a > 0 ? 0xFFFF : a < 0 ? 0x0000 : 0x8000; };
+    uint16_t lx = axis16(s.lx), ly16 = axis16((int16_t)-s.ly);   // 0x3F Y axis: down is positive
+    b[3] = lx & 0xFF; b[4] = lx >> 8;
+    b[5] = ly16 & 0xFF; b[6] = ly16 >> 8;
+    b[7] = 0x00; b[8] = 0x80; b[9] = 0x00; b[10] = 0x80;         // right stick centered
+    esp_hidd_dev_input_set(s_dev, 0, 0x3F, b, sizeof(b));
 }
 
 void stream_task(void*) {
@@ -296,20 +335,36 @@ void stream_task(void*) {
                 vTaskDelay(pdMS_TO_TICKS(1500));   // let connection setup + sniff negotiation settle
                 if (!s_connected) continue;
                 streaming = true;
-                ESP_LOGI(TAG, "link settled -> streaming 0x30");
+                ESP_LOGI(TAG, "link settled -> streaming (mode 0x%02x)", s_input_mode);
             }
-            memset(b, 0, sizeof(b));
             ProState snapshot = s_state;           // copy so packing is consistent
             uint8_t btn[3];
             pack_buttons(btn, snapshot);
-            fill_prefix(b, &snapshot, btn);
-            esp_hidd_dev_input_set(s_dev, 0, 0x30, b, sizeof(b));
+
+            if (s_input_mode == 0x30) {
+                // Full mode: continuous ~66 Hz 0x30 stream (the Switch drops a quiet controller).
+                memset(b, 0, sizeof(b));
+                fill_prefix(b, &snapshot, btn);
+                esp_hidd_dev_input_set(s_dev, 0, 0x30, b, sizeof(b));
+            } else {
+                // Simple mode (real-Pro default; BlueRetro stays here): 0x3F on change, plus a
+                // ~100 ms keepalive so a quiet controller is not reaped by host watchdogs.
+                static uint8_t p3f0 = 0xFF, p3f1 = 0xFF, p3f2 = 0xFF;
+                static TickType_t last_3f = 0;
+                uint8_t hb0 = btn[0], hb1 = btn[1], hb2 = btn[2];
+                bool changed = (hb0 != p3f0 || hb1 != p3f1 || hb2 != p3f2);
+                if (changed || (xTaskGetTickCount() - last_3f) >= pdMS_TO_TICKS(100)) {
+                    send_3f_report(snapshot);
+                    p3f0 = hb0; p3f1 = hb1; p3f2 = hb2;
+                    last_3f = xTaskGetTickCount();
+                }
+            }
 
             static uint8_t pb0 = 0, pb1 = 0, pb2 = 0;
             static TickType_t last_tx = 0;
             if ((btn[0] != pb0 || btn[1] != pb1 || btn[2] != pb2) &&
                 (xTaskGetTickCount() - last_tx) >= pdMS_TO_TICKS(50)) {
-                ESP_LOGI(TAG, "TX 0x30 btn=%02x %02x %02x", btn[0], btn[1], btn[2]);
+                ESP_LOGI(TAG, "TX 0x%02x btn=%02x %02x %02x", s_input_mode, btn[0], btn[1], btn[2]);
                 pb0 = btn[0]; pb1 = btn[1]; pb2 = btn[2];
                 last_tx = xTaskGetTickCount();
             }
@@ -405,6 +460,7 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
         ESP_LOGI(TAG, "HIDD CONNECT (status=%d, %s)", p->connect.status,
                  s_have_bond ? "resume" : "fresh");
         if (p->connect.status == ESP_OK) {
+            s_input_mode = 0x3F;   // every fresh connection starts in simple mode, like a real Pro
             s_connected = true;
             s_link = bt::LINK_CONNECTED;
             cancel_hid_kick();
