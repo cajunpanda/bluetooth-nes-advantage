@@ -408,6 +408,14 @@ void pro_init() {
     ESP_ERROR_CHECK(esp_bt_controller_init(&bt_cfg));
     ESP_ERROR_CHECK(esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT));
 
+#if defined(CONFIG_BTDM_CTRL_MODEM_SLEEP)
+    // Modem sleep is compiled in for the BLE transport's power savings (see sdkconfig.defaults),
+    // but Classic runs with it disabled: it must not touch the fragile Switch handshake, and it
+    // saves nothing on the connected link anyway - the QoS-pinned active ACL (kQosTpoll below)
+    // keeps RX on regardless (measured 117.2 vs 116.9 mA, bench 2026-07-14).
+    ESP_ERROR_CHECK(esp_bt_sleep_disable());
+#endif
+
     esp_bluedroid_config_t bd_cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_bluedroid_init_with_cfg(&bd_cfg));
     ESP_ERROR_CHECK(esp_bluedroid_enable());

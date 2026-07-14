@@ -267,17 +267,25 @@ void ble_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
             // carries a hint (Peripheral Preferred Connection Parameters), which many centrals
             // (Windows especially) ignore, settling on 30 to 50 ms of pure added input lag. 0x06 is
             // 7.5 ms, the BLE 4.2 floor (this ESP32 is 4.2, no 2M PHY); request a pinned 7.5 ms
-            // (min==max) with zero peripheral latency. Requesting a [7.5, 15] range lets BlueZ settle
-            // on 15 ms (it picks the max), so pin the floor instead. The host still has the final say;
-            // the granted value is logged on ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT below.
+            // (min==max). Requesting a [7.5, 15] range lets BlueZ settle on 15 ms (it picks the max),
+            // so pin the floor instead. The host still has the final say; the granted value is logged
+            // on ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT below.
+            //
+            // Peripheral (slave) latency 4 is the battery-life half of the request: it lets the
+            // radio skip listening on up to 4 idle connection events, which with modem sleep powers
+            // the radio down between events (BLE connected ~114 -> ~61 mA at 240 MHz, ~94 -> ~41 mA
+            // at 80 MHz, bench 2026-07-14). Press latency is unchanged: a peripheral with pending
+            // data still transmits at the next 7.5 ms event - latency only applies to idle listens.
+            // Only host->device traffic (unused in gameplay) can be delayed. A host that refuses
+            // simply grants latency 0 and we run at the old draw.
             esp_ble_conn_update_params_t cp = {};
             memcpy(cp.bda, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
             cp.min_int = 0x06;     // 6 * 1.25 ms = 7.5 ms
             cp.max_int = 0x06;     // 6 * 1.25 ms = 7.5 ms (pin the floor)
-            cp.latency = 0;        // no peripheral latency (every interval is an opportunity to send)
+            cp.latency = 4;        // skip up to 4 idle events (radio duty ~1/5 when idle)
             cp.timeout = 400;      // 400 * 10 ms = 4 s supervision timeout
             esp_err_t e = esp_ble_gap_update_conn_params(&cp);
-            ESP_LOGI(TAG, "requested fast conn params (7.5 ms pinned, latency 0): %s", esp_err_to_name(e));
+            ESP_LOGI(TAG, "requested fast conn params (7.5 ms pinned, latency 4): %s", esp_err_to_name(e));
         }
         break;
     }

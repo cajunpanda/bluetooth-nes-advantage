@@ -25,25 +25,36 @@ CONFIG_BT_SSP_ENABLED=y
 CONFIG_BT_GATTS_ENABLE=y
 CONFIG_BT_BLE_SMP_ENABLE=y
 
-# --- Power management: off during play ---
-# CPU PM + tickless idle + BT modem sleep all push the ACL link into sniff mode. During the
-# Switch handshake that causes rapid sniff/unsniff churn (our 60Hz 0x30 stream fights the sniff
-# requests) which tears the connection down before the handshake finishes. Keep the radio fully
-# active during play; deep sleep is handled separately by the ULP path.
+# --- Power management: no CPU PM, but BT modem sleep is compiled in ---
+# CPU PM + tickless idle push the ACL link into sniff mode. During the Switch handshake that
+# causes rapid sniff/unsniff churn (our ~66Hz 0x30 stream fights the sniff requests) which tears
+# the connection down before the handshake finishes. Keep them off; deep sleep is handled
+# separately by the ULP path.
+#
+# BT modem sleep (ORIG mode, main-XTAL low-power clock) is compiled in for the BLE transport:
+# combined with slave latency it lets the controller power the radio down between connection
+# events (BLE connected ~114 -> ~61 mA at 240 MHz, bench 2026-07-14; see bt_ble.cpp). The Classic
+# transport calls esp_bt_sleep_disable() in its init, so BR/EDR behaves exactly like a build
+# without modem sleep: the handshake never sees it, and it saves nothing on a connected Classic
+# link anyway (the QoS-pinned active ACL keeps RX on regardless).
 CONFIG_PM_ENABLE=n
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=n
-CONFIG_BTDM_CTRL_MODEM_SLEEP=n
+CONFIG_BTDM_CTRL_MODEM_SLEEP=y
+CONFIG_BTDM_CTRL_MODEM_SLEEP_MODE_ORIG=y
+CONFIG_BTDM_CTRL_LPCLK_SEL_MAIN_XTAL=y
 
-# --- Input responsiveness: full clock + 1 kHz tick ---
+# --- Input responsiveness: 1 kHz tick; CPU at 80 MHz for battery life ---
 # Input lag is gated by how often app_main can re-poll the 4021. The default 100 Hz FreeRTOS tick
-# floors vTaskDelay() at 10 ms, so the loop samples every 10 ms no matter what we ask for (the
-# 4021 read itself is only ~128 us). A 1 kHz tick lets the loop poll at ~2 ms, cutting the average
-# sampling latency from ~5 ms to ~1 ms. Run the CPU at its full 240 MHz (default is 160) for the
-# tightest, least-jittery compute between polls. All firmware delays use pdMS_TO_TICKS(), so they
-# rescale automatically; the only cost is a slightly higher tick-ISR rate (negligible, and the
-# radio is already fully active during play).
-CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
-CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
+# floors vTaskDelay() at 10 ms, so the loop samples every 10 ms no matter what we ask for. A 1 kHz
+# tick lets the loop poll at ~2 ms, cutting the average sampling latency from ~5 ms to ~1 ms. All
+# firmware delays use pdMS_TO_TICKS(), so they rescale automatically.
+#
+# CPU runs at 80 MHz (was 240): bench 2026-07-14 measured -23 mA in every state (~+24% Classic
+# playtime, 1800 mAh ~13.6 -> ~17 h) with no radio-timing change. The 4021 read grows ~0.13 ->
+# ~0.4 ms inside the unchanged 2 ms poll loop - noise against the 10-16 ms BT link budget. Full
+# handshake + gameplay validated at 80 MHz against a real Switch and an 8BitDo receiver.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_80=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=80
 CONFIG_FREERTOS_HZ=1000
 
 # --- ULP-FSM coprocessor (sleep-time 4021 polling) ---
