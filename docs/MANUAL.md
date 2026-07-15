@@ -106,12 +106,53 @@ Set the slider before or while you pair.
 
 ## Configuration and firmware updates
 
-Hold **A + B + Select** for 5 s. The stick restarts into config mode and advertises as "NES
-Advantage Config". The stick also boots straight into config mode if it cannot reach the controller
-board (a harness or solder fault): the red LED blinks and the config page shows "No controller
-detected". Toggle the player-select slider to test each side.
+The controller has a built-in web app for testing every input, changing how it behaves, and
+flashing new firmware — all over Bluetooth, no cable. It runs in Chrome or Edge (Web Bluetooth); on
+iPhone use a Web BLE browser such as Bluefy.
 
-Open the hosted config page at
-**<https://cajunpanda.github.io/bluetooth-nes-advantage/>** in Chrome or Edge (Web Bluetooth),
-connect, and change settings or flash new firmware over the air. It returns to normal play when you
-hold Start for 3 s, or after 5 idle minutes. See [`../web/README.md`](../web/README.md).
+### Enter config mode and connect
+
+1. Hold **A + B + Select** for 5 s. The stick restarts into config mode and advertises as "NES
+   Advantage Config"; the blue LED blinks while it waits.
+2. Open the hosted config page at
+   **<https://cajunpanda.github.io/bluetooth-nes-advantage/>**, click **Connect over Bluetooth**,
+   and pick **NES Advantage Config**. The blue LED goes solid once connected.
+
+![The web config page connect screen](images/web-config-connect.png)
+
+The stick also boots straight into config mode if it cannot reach the controller board (a harness
+or solder fault): the red LED blinks and the page shows "No controller detected".
+
+### Test
+
+The **Test** tab mirrors the stick live. Every button, the D-pad, Select and Start, the P1/P2
+slider, and both turbo dials light up as you use them, with each turbo rate shown in Hz and a
+battery gauge below. Toggle the player-select slider to check each side. Use this to confirm a
+fresh install or track down a dead input.
+
+![The Test tab lighting up as buttons are pressed](images/web-config-test-active.png)
+
+### Configure
+
+The **Configure** tab sets the three per-mode options — **Transport** (Switch/Receiver or BLE),
+**Button profile**, and **Directional mode** — the same choices as the on-stick gestures, alongside
+a readout of the device name, firmware version, and running OTA slot. Change what you want and press
+**Apply & reboot** (bottom left) to save; the stick restarts into the new settings.
+
+![The Configure tab with transport, profile, and directional-mode settings](images/web-config-settings.png)
+
+### Firmware updates (OTA)
+
+The **System** tab flashes new firmware over the air. Drag a `firmware.bin` onto the cartridge slot
+(or tap to choose one) and press **Flash firmware**. Keep the page open until the device reboots
+into the new image. The update is written to the second OTA slot and SHA-256 verified before the
+boot partition switches, so a bad upload leaves the running firmware untouched. The same tab has a
+live device console — the stick's log plus the wired console commands (`help`, `get`, `batt`,
+`diag`, `profile`, …) for troubleshooting.
+
+![The System tab: firmware update slot and live device console](images/web-config-firmware.png)
+
+### Leave config mode
+
+Hold **Start** for about 3 s to return to normal play, or wait — it exits after 5 idle minutes. See
+[`../web/README.md`](../web/README.md) for the GATT contract and full browser-support notes.

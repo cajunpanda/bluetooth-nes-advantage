@@ -6,22 +6,6 @@ over BLE. No case cutting and no added buttons: everything runs from the stick's
 and it charges through the original cable hole.
 
 ![NES Advantage with the Bluetooth board](docs/images/hero-2.jpg)
-![Bluetooth NES Advantage board](docs/images/hero-1.jpg)
-
-## How it works
-
-A single custom PCB replaces the controller's cable. A bare ESP32-WROOM-32E reads the original
-CD4021 shift registers and presents the stick as a Bluetooth gamepad in one of two modes:
-
-- Switch mode (Bluetooth Classic): emulates a Switch Pro Controller. Pairs directly with a
-  Nintendo Switch and with the 8BitDo NES Retro Receiver.
-- BLE mode: a standard BLE HID gamepad ("NES Advantage") for PCs, phones, BlueRetro, and
-  emulators.
-
-Turbo, slow motion, and the player-select slider all work as originally designed.
-
-![PCB top](docs/images/pcb_top.png)
-![PCB bottom](docs/images/pcb_bottom.png)
 
 ## Features
 
@@ -38,6 +22,36 @@ Turbo, slow motion, and the player-select slider all work as originally designed
 - RGB status LEDs, battery level monitoring, 5 V barrel jack charging
 - Play while charging (load-share power path)
 
+## Configure and update from your browser
+
+A built-in Web Bluetooth app tests every input, tunes how the stick behaves, and flashes new
+firmware over the air — no cable and nothing to install. Put the stick in config mode (hold
+A + B + Select for 5 s), open the hosted
+**[config page](https://cajunpanda.github.io/bluetooth-nes-advantage/)** in Chrome or Edge, and
+connect. Every button, the D-pad, the player-select slider, and the turbo dials light up live as
+you use them:
+
+![Live controller test in the web config page](docs/images/web-config-demo.gif)
+
+Change transport, button profile, and directional mode and apply over the air, or drop a
+`firmware.bin` on the cartridge slot to update. The
+[manual](docs/MANUAL.md#configuration-and-firmware-updates) has the full walkthrough.
+
+## How it works
+
+A single custom PCB replaces the controller's cable. A bare ESP32-WROOM-32E reads the original
+CD4021 shift registers and presents the stick as a Bluetooth gamepad in one of two modes:
+
+- Switch mode (Bluetooth Classic): emulates a Switch Pro Controller. Pairs directly with a
+  Nintendo Switch and with the 8BitDo NES Retro Receiver.
+- BLE mode: a standard BLE HID gamepad ("NES Advantage") for PCs, phones, BlueRetro, and
+  emulators.
+
+Turbo, slow motion, and the player-select slider all work as originally designed.
+
+![PCB top](docs/images/pcb_top.png)
+![PCB bottom](docs/images/pcb_bottom.png)
+
 ## Documentation
 
 Start with the guide that fits you:
@@ -51,10 +65,6 @@ Start with the guide that fits you:
 - **Building and customizing firmware:** [docs/FIRMWARE.md](docs/FIRMWARE.md). Toolchain, module
   layout, architecture, and the config/OTA path.
 
-Configure, test, and flash your controller from the browser at the hosted
-**[config page](https://cajunpanda.github.io/bluetooth-nes-advantage/)** (Chrome or Edge, Web
-Bluetooth). Put the stick in config mode first (hold A + B + Select for 5 s).
-
 ## Get one prebuilt
 
 Complete kits and assembled boards are available at
@@ -66,14 +76,14 @@ Questions and help: join the [Discord](https://discord.gg/t8uT8NgTnc).
 
 ## Repository layout
 
-| Path | Contents |
-|---|---|
-| [`firmware/`](firmware/) | ESP-IDF dual-mode Bluetooth firmware |
-| [`hardware/`](hardware/) | KiCad PCB project and the 3D-printable jack plug |
-| [`web/`](web/) | Web Bluetooth config and OTA update page |
-| [`tools/`](tools/) | Serial monitor and build helpers |
-| [`docs/`](docs/) | Manual, install guide, hardware guide, firmware guide, protocol reference |
-| [`AGENTS.md`](AGENTS.md) | Working notes for contributors and AI coding agents |
+| Path                     | Contents                                                                  |
+| ------------------------ | ------------------------------------------------------------------------- |
+| [`firmware/`](firmware/) | ESP-IDF dual-mode Bluetooth firmware                                      |
+| [`hardware/`](hardware/) | KiCad PCB project and the 3D-printable jack plug                          |
+| [`web/`](web/)           | Web Bluetooth config and OTA update page                                  |
+| [`tools/`](tools/)       | Serial monitor and build helpers                                          |
+| [`docs/`](docs/)         | Manual, install guide, hardware guide, firmware guide, protocol reference |
+| [`AGENTS.md`](AGENTS.md) | Working notes for contributors and AI coding agents                       |
 
 ## License
 
