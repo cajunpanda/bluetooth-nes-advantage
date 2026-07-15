@@ -25,7 +25,7 @@ and it charges through the original cable hole.
 ## Configure and update from your browser
 
 A built-in Web Bluetooth app tests every input, tunes how the stick behaves, and flashes new
-firmware over the air — no cable and nothing to install. Put the stick in config mode (hold
+firmware over the air with no cable and nothing to install. Put the stick in config mode (hold
 A + B + Select for 5 s), open the hosted
 **[config page](https://cajunpanda.github.io/bluetooth-nes-advantage/)** in Chrome or Edge, and
 connect. Every button, the D-pad, the player-select slider, and the turbo dials light up live as
