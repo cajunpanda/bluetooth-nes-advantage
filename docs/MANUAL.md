@@ -109,6 +109,9 @@ Set the slider before or while you pair.
 Hold **A + B + Select** for 5 s. The stick restarts into config mode and advertises as "NES
 Advantage Config". The stick also boots straight into config mode if it cannot reach the controller
 board (a harness or solder fault): the red LED blinks and the config page shows "No controller
-detected". Toggle the player-select slider to test each side. Open the config page in Chrome or Edge (Web Bluetooth), connect, and change
-settings or flash new firmware over the air. It returns to normal play when you hold Start for
-3 s, or after 5 idle minutes. See [`../web/README.md`](../web/README.md).
+detected". Toggle the player-select slider to test each side.
+
+Open the hosted config page at
+**<https://cajunpanda.github.io/bluetooth-nes-advantage/>** in Chrome or Edge (Web Bluetooth),
+connect, and change settings or flash new firmware over the air. It returns to normal play when you
+hold Start for 3 s, or after 5 idle minutes. See [`../web/README.md`](../web/README.md).

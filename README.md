@@ -51,6 +51,10 @@ Start with the guide that fits you:
 - **Building and customizing firmware:** [docs/FIRMWARE.md](docs/FIRMWARE.md). Toolchain, module
   layout, architecture, and the config/OTA path.
 
+Configure, test, and flash your controller from the browser at the hosted
+**[config page](https://cajunpanda.github.io/bluetooth-nes-advantage/)** (Chrome or Edge, Web
+Bluetooth). Put the stick in config mode first (hold A + B + Select for 5 s).
+
 ## Get one prebuilt
 
 Prebuilt kits and assembled units will be available at [cajunpanda.com](https://cajunpanda.com).
