@@ -10,9 +10,12 @@ Pin assignments here match the firmware (`firmware/main/board_config.h`). The Ki
 
 ## PCB
 
-- Fab it from the KiCad project in [`../hardware/bt-nes-advantage-pcb/`](../hardware/bt-nes-advantage-pcb/): standard 2-layer, 1.6 mm, 78 x 36 mm.
-  It fits the stock case with no cutting.
-- A PCBWay shared project will be published for one-click ordering.
+- Order it ready-made from the
+  [PCBWay shared project](https://www.pcbway.com/project/shareproject/Bluetooth_NES_Advantage_865d24ef.html)
+  (gerbers preloaded, one-click ordering).
+- Or fab it yourself from the KiCad project in
+  [`../hardware/bt-nes-advantage-pcb/`](../hardware/bt-nes-advantage-pcb/): standard 2-layer,
+  1.6 mm, 78 x 36 mm. It fits the stock case with no cutting.
 
 ## Bill of materials
 
@@ -48,8 +51,8 @@ variants.
 
 - **Battery:** [103450 3.7 V LiPo](https://a.co/d/7UFYwX9), 1500 to 2000 mAh with a JST-PH plug.
   Check polarity before connecting; there is no standard.
-- **Harness cable:** [8-pin JST-XH harness](https://a.co/d/abYfjqw) for J2.
-- **Charging cable:** [5 V DC barrel jack cable](https://a.co/d/4bPUQj2).
+- **J2 wiring harness:** [8-pin JST-XH harness cable](https://a.co/d/abYfjqw).
+- **Charging cable:** [5 V DC barrel jack cable (2.5 x 0.7 mm)](https://a.co/d/4bPUQj2).
 - **Programming cable (self-built boards only):** Tag-Connect
   [TC2030-FTDI-C232HD-DDHSP-0-DTR](https://www.tag-connect.com/product/tc2030-ftdi-c232hd-ddhsp-0-dtr)
   (USB to TC2030 serial, 3.3 V, with DTR for auto-reset). The legged version clips into the board;
