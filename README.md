@@ -80,8 +80,8 @@ CERN-OHL-P-2.0, documentation under CC-BY-4.0. See [LICENSING.md](LICENSING.md).
 The PCBs for this product are sponsored and produced by PCBWay. As always, their service was amazing
 and the fabrication as well as the shipping was fast. Because of the all-in-one customs and shipping
 price, the handling of taxes and other fees was very easy.
-[Click here](https://www.pcbway.com/orderonline.aspx) to get to the order form if you want to order
-your custom PCBs.
+[Click here](https://www.pcbway.com/project/shareproject/Bluetooth_NES_Advantage_865d24ef.html) to
+order the PCBs from the shared project (gerbers preloaded).
 
 ## Disclaimer
 
