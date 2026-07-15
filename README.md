@@ -57,7 +57,8 @@ Bluetooth). Put the stick in config mode first (hold A + B + Select for 5 s).
 
 ## Get one prebuilt
 
-Prebuilt kits and assembled units will be available at [cajunpanda.com](https://cajunpanda.com).
+Complete kits and assembled boards are available at
+[cajunpanda.com](https://cajunpanda.com/shop/bt-nes-advantage).
 
 ## Support
 
