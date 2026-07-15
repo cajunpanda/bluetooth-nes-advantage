@@ -71,7 +71,7 @@ jack sits in the original cable hole.
 
 Check polarity against the board's + and - silk marks first; there is no standard JST-PH polarity.
 
-![Battery connector polarity](/home/aaron/projects/bluetooth-nes-advantage/docs/images/battery_connector_polarity.jpg)
+![Battery connector polarity](images/battery_connector_polarity.jpg)
 
 ## 6. Insulate and reassemble
 
