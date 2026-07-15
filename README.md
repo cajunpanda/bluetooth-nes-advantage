@@ -1,4 +1,4 @@
-# Bluetooth NES Advantage
+# Bluetooth NES Advantage (v2)
 
 Integrated Bluetooth for the NES Advantage (NES-026) arcade stick. It pairs directly with a
 Nintendo Switch, an 8BitDo NES Retro Receiver (for a real NES), and PCs, phones, and emulators
