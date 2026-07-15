@@ -6,72 +6,52 @@ Controller emulation needs BT Classic, which NimBLE cannot do. Built with Platfo
 
 ## Building from source
 
-Requirements: Python 3 and [PlatformIO](https://platformio.org/) (CLI or the VSCode extension).
+Requirements: Python 3 and [PlatformIO](https://platformio.org/) (CLI or the VSCode extension). Flash
+and monitor through **[benchmux](https://github.com/cajunpanda/benchmux)** (see the next section);
+these docs use it for every flash and serial example.
 
 ```bash
 cd firmware
-pio run -e wroom32              # build
-pio run -e wroom32 -t upload    # flash over the Tag-Connect cable
-pio device monitor              # serial console, 115200 baud
-```
-
-Plain ESP-IDF works too:
-
-```bash
-cd firmware
-idf.py set-target esp32
-idf.py build flash monitor
+pio run -e wroom32     # build (plain ESP-IDF works too: idf.py set-target esp32 && idf.py build)
 ```
 
 A build is the main static check; there is no unit-test suite. Treat warnings in `main/*.cpp` as
-regressions. If the board already runs firmware, you can skip the cable and flash your build's
-`firmware/.pio/build/wroom32/firmware.bin` over the air from the config page.
+regressions. If the board already runs firmware, skip the cable and flash your build's
+`firmware/.pio/build/wroom32/firmware.bin` over the air from the config page (drop it on the OTA
+card; the stick verifies and reboots into it). See [`../web/README.md`](../web/README.md).
 
-## Shared serial monitor
+## Serial monitor and flashing (benchmux)
 
 Only one process can own the serial port, which is awkward when a person and an automated tool both
-want to watch it. **benchmux** (a standalone bench serial proxy, `serial_proxy.py`) owns the port
-and tees everything to a shared logfile, and its `flash` command coordinates the port handoff so the
-monitor never has to be stopped by hand. Run it by path or symlinked onto `PATH`:
+want to watch it. **[benchmux](https://github.com/cajunpanda/benchmux)** (`serial_proxy.py`) owns the
+port and tees everything to a shared logfile, and its `flash` command coordinates the port handoff so
+the monitor never has to be stopped by hand. It is the recommended way to flash and monitor this
+board. Run it by path or symlink it onto `PATH`:
 
 ```bash
-serial_proxy.py monitor --port /dev/ttyUSB0                       # start once; tees to /tmp/serial_proxy.log
+serial_proxy.py monitor --port /dev/ttyUSB0                       # own the port, tee to /tmp/serial_proxy.log
 tail -f /tmp/serial_proxy.log                                     # watch live, any number of readers
-serial_proxy.py flash --flash-cmd 'pio run -e wroom32 -t upload'  # pause proxy, build + upload, resume + reset
+serial_proxy.py flash --flash-cmd 'pio run -e wroom32 -t upload'  # build + upload without stopping the monitor
 ```
 
-`pio device monitor` needs a real TTY; reading the proxy's logfile is the scriptable path. See
-[`../tools/README.md`](../tools/README.md).
+`pio device monitor` needs a real TTY; reading the proxy's logfile is the scriptable path. `ble_proxy.py`
+does the same over BLE (console + OTA) with no cable. See [`../tools/README.md`](../tools/README.md).
 
 ## First flash (blank board)
 
 A freshly fabbed board has no firmware, so the first flash goes over the Tag-Connect serial cable
-(see [HARDWARE.md](HARDWARE.md)). After this one flash, use the browser path for all updates.
+(see [HARDWARE.md](HARDWARE.md)); after it, all updates are over the air. Install esptool
+(`pip install esptool`), press the cable onto the J4 pads (it powers the board and auto-resets, no
+buttons), then flash the merged image through benchmux:
 
-1. Install esptool: `pip install esptool`
-2. Plug the cable into your PC and press it onto the J4 pads. The cable powers the board and handles
-   reset automatically; no buttons needed.
-3. Flash the merged image:
+```bash
+serial_proxy.py monitor --port /dev/ttyUSB0
+serial_proxy.py flash --flash-cmd 'esptool.py --chip esp32 --baud 460800 write_flash 0x0 bt-nes-advantage.bin'
+```
 
-   ```bash
-   esptool.py --chip esp32 --baud 460800 write_flash 0x0 bt-nes-advantage.bin
-   ```
-
-   Or, with separate files:
-
-   ```bash
-   esptool.py --chip esp32 --baud 460800 write_flash \
-     0x1000 bootloader.bin 0x8000 partitions.bin 0xf000 ota_data_initial.bin 0x20000 firmware.bin
-   ```
-
-4. The blue LED blinks when it boots (pairing mode).
-
-## Updating over the air
-
-The normal update path is the browser, no cable. On the stick, hold A + B + Select for 5 s to
-restart into config mode, open the config page in Chrome or Edge, connect to "NES Advantage Config",
-drop a `.bin` on the OTA card, and flash. The stick verifies the image and reboots into it. Details
-in [`../web/README.md`](../web/README.md).
+The blue LED blinks on boot (pairing mode). To flash the separate images instead of the merged
+`bt-nes-advantage.bin`, pass them to the same `write_flash`: `0x1000 bootloader.bin 0x8000
+partitions.bin 0xf000 ota_data_initial.bin 0x20000 firmware.bin`.
 
 ## Module layout (`main/`)
 
@@ -106,23 +86,10 @@ build time, and both are no-ops for BLE.
   (640). Required for the 8BitDo USB Adapter 2 (the Switch 2 bridge) and BlueRetro over BT Classic.
   Details in `docs/switch_pro_protocol.md` "Connection direction".
 
-## Gestures
-
-One radio is live per boot; the active transport comes from NVS (default Classic). Hold combos for
-5 seconds on the active player; the red LED blinks the new selection.
-
-| Combo | Action |
-|---|---|
-| Start | Deep sleep (the ULP wakes on a button change; hold Start to power back on) |
-| Select | Forget host, rotate BT identity, reboot (re-pair or swap host) |
-| A+B+Up | Cycle button profile |
-| A+B+Down | Cycle directional mode |
-| A+B+Select | Reboot into BLE config/OTA mode |
-| Select+Start | Toggle transport (Classic / BLE), reboot |
-
-User-facing details (LED meanings, profiles, two-player) are in [MANUAL.md](MANUAL.md).
-
 ## Architecture
+
+Gestures (hold-combos) are matched in `detect_gesture()` in `app_main.cpp`; the user-facing list is
+in [MANUAL.md](MANUAL.md).
 
 ### Sleep and wake
 
@@ -199,17 +166,10 @@ host-chosen 15 ms.
 
 ### Player select and two-player
 
-One Bluetooth radio can only be one controller to a console receiver, so take-turns play depends on
-the host:
-
-| Host | Take-turns | Mechanism |
-|---|---|---|
-| PC / emulator (BLE) | Yes | Two HID GATT services on one connection; the slider routes the stick to P1's or P2's gamepad |
-| BlueRetro (BLE) | Yes | Double-map one controller to both wired ports in BlueRetro config |
-| Switch, 8BitDo receiver (Classic) | No | One Pro Controller is one player; the slider picks which |
-
-The BLE implementation registers the same report map twice (two HID services with distinct report
-IDs), which is what makes Linux and other hosts enumerate two separate gamepads.
+The BLE transport registers the same report map twice (two HID services with distinct report IDs),
+so hosts enumerate two gamepads and the player-select slider routes the stick to P1's or P2's report
+for take-turns play. Classic is one Pro Controller (one player); the slider only picks which. The
+host-by-host behavior is in [MANUAL.md](MANUAL.md).
 
 ## Protocol reference
 
