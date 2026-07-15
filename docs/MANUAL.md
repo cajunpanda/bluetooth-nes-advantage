@@ -35,7 +35,8 @@ bridges the stick's Pro Controller emulation to the Switch 2.
 ## Gestures
 
 Hold the listed buttons together for about 5 seconds, then release. The LED blinks to confirm.
-Gestures work any time during play.
+Gestures work any time during play. For any gesture that uses A or B, turn the Turbo dials off
+first: turbo pulses those buttons, so the hold won't register with it on.
 
 | Hold for 5 s | Does | Confirm |
 |---|---|---|
