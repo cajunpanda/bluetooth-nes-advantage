@@ -70,3 +70,20 @@ Prebuilt kits and assembled units will be available at [cajunpanda.com](https://
 
 Licensed by medium: firmware and software under MIT, hardware (PCB and 3D models) under
 CERN-OHL-P-2.0, documentation under CC-BY-4.0. See [LICENSING.md](LICENSING.md).
+
+## PCBs
+
+The PCBs for this product are sponsored and produced by PCBWay. As always, their service was amazing
+and the fabrication as well as the shipping was fast. Because of the all-in-one customs and shipping
+price, the handling of taxes and other fees was very easy.
+[Click here](https://www.pcbway.com/orderonline.aspx) to get to the order form if you want to order
+your custom PCBs.
+
+## Disclaimer
+
+This is an independent, unofficial project and is not affiliated with, endorsed by, sponsored by, or
+associated with Nintendo Co., Ltd. Nintendo, NES, Nintendo Entertainment System, NES Advantage,
+Nintendo Switch, and Nintendo Switch Pro Controller are trademarks of Nintendo. All trademarks are
+the property of their respective owners and are used here only for identification and compatibility.
+No Nintendo firmware, code, or assets are included; the Switch Pro Controller support is a clean-room
+implementation of the controller's publicly documented behavior, for interoperability only.
