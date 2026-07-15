@@ -59,6 +59,10 @@ Bluetooth). Put the stick in config mode first (hold A + B + Select for 5 s).
 
 Prebuilt kits and assembled units will be available at [cajunpanda.com](https://cajunpanda.com).
 
+## Support
+
+Questions and help: join the [Discord](https://discord.gg/t8uT8NgTnc).
+
 ## Repository layout
 
 | Path | Contents |

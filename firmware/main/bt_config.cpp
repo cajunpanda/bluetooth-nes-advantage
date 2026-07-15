@@ -58,7 +58,7 @@
 #include "esp_rom_crc.h"
 #include "cJSON.h"
 
-#define FW_VERSION "1.0.0"
+#define FW_VERSION "2.0.0"
 
 static const char* TAG = "bt_config";
 
