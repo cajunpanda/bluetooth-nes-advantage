@@ -175,7 +175,10 @@ esp_ble_adv_params_t s_adv_params = {
     .adv_int_min       = 0x20,
     .adv_int_max       = 0x30,
     .adv_type          = ADV_TYPE_IND,
-    .own_addr_type     = BLE_ADDR_TYPE_PUBLIC,
+    // Advertise from a static random address (set in ble_init), not the chip's public BT MAC, so a
+    // dual-mode host that paired us over Classic first still sees the BLE gamepad as a separate device
+    // and enumerates its LE HID (fix-list #5).
+    .own_addr_type     = BLE_ADDR_TYPE_RANDOM,
     .peer_addr         = {0},
     .peer_addr_type    = BLE_ADDR_TYPE_PUBLIC,
     .channel_map       = ADV_CHNL_ALL,
@@ -354,6 +357,19 @@ void ble_init() {
     ESP_ERROR_CHECK(esp_bluedroid_enable());
 
     ESP_ERROR_CHECK(esp_ble_gap_register_callback(ble_gap_cb));
+
+    // Give BLE its own static-random address (distinct from the Classic public MAC) before any
+    // advertising starts, so a dual-mode host that paired us over Classic first still enumerates the
+    // LE HID instead of folding it into the classic device record (fix-list #5). own_addr_type in
+    // s_adv_params is BLE_ADDR_TYPE_RANDOM to match. Set-random-address is async (completes on
+    // ESP_GAP_BLE_SET_STATIC_RAND_ADDR_EVT); advertising only starts after the long HIDD-START ->
+    // adv-data -> scan-rsp chain, so the address is in place well before the first ADV.
+    esp_bd_addr_t rand_addr;
+    settings::ble_static_rand_addr(rand_addr);
+    esp_err_t rerr = esp_ble_gap_set_rand_addr(rand_addr);
+    ESP_LOGI(TAG, "BLE static random addr %02x:%02x:%02x:%02x:%02x:%02x: %s",
+             rand_addr[0], rand_addr[1], rand_addr[2], rand_addr[3], rand_addr[4], rand_addr[5],
+             esp_err_to_name(rerr));
     // esp_hidd's BLE backend builds its GATT services from GATTS events, but it does NOT register
     // the GATTS callback itself; the app must route them to esp_hidd_gatts_event_handler, or the
     // HID service is never created and ESP_HIDD_START_EVENT never fires.
@@ -401,15 +417,8 @@ void ble_set_battery_level(uint8_t pct) { s_battery = pct > 100 ? 100 : pct; }
 void ble_forget_host() {
     // Same forget semantics as Classic: clear every bond + rotate identity + reboot, so a forgotten
     // host stops auto-reconnecting to the old address.
-    ESP_LOGW(TAG, "forget host -> remove BLE bonds + rotate identity + reboot");
-    int nbonds = esp_ble_get_bond_device_num();
-    if (nbonds > 0) {
-        esp_ble_bond_dev_t* list = (esp_ble_bond_dev_t*)malloc(sizeof(esp_ble_bond_dev_t) * nbonds);
-        if (list && esp_ble_get_bond_device_list(&nbonds, list) == ESP_OK) {
-            for (int i = 0; i < nbonds; i++) esp_ble_remove_bond_device(list[i].bd_addr);
-        }
-        free(list);
-    }
+    ESP_LOGW(TAG, "forget host -> remove bonds + rotate identity + reboot");
+    bt::clear_all_bonds();   // both BLE and BR/EDR tables: the identity bump invalidates all (fix #7)
     settings::bump_identity_generation();
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_restart();

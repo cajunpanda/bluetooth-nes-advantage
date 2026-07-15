@@ -2,6 +2,7 @@
 // Copyright 2026 Aaron Perkins
 
 #include "settings.hpp"
+#include <cstring>
 #include "nvs.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -73,6 +74,16 @@ void apply_bt_identity() {
         ESP_LOGI(TAG, "BT identity: rotated base MAC -> %02x:%02x:%02x:%02x:%02x:%02x (gen %u)",
                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], gen);
     }
+}
+
+void ble_static_rand_addr(uint8_t out[6]) {
+    uint8_t mac[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};   // deterministic fallback if efuse fails
+    if (esp_efuse_mac_get_default(mac) != ESP_OK) {
+        ESP_LOGW(TAG, "could not read factory MAC; BLE random address uses fallback base");
+    }
+    mac[5] ^= identity_generation();   // rotate with identity, matching apply_bt_identity's base MAC
+    mac[0] |= 0xC0;                     // two MSBs = 0b11: BLE static random + distinct from public MAC
+    memcpy(out, mac, 6);
 }
 
 } // namespace settings

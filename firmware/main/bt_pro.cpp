@@ -391,6 +391,19 @@ void bt_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t* param) {
             ESP_LOGE(TAG, "GAP auth FAILED: stat=%d", param->auth_cmpl.stat);
         }
         break;
+    case ESP_BT_GAP_ACL_CONN_CMPL_STAT_EVT:
+        // The actually-connected host, captured before HID CONNECT so the QoS request there pins the
+        // right link. s_peer is otherwise seeded from bonds[0] on a reconnect (see HIDD START); with
+        // >=2 stored bonds, a resume from a host that is NOT bonds[0] and skips a fresh GAP auth (a
+        // stored link key resumes without re-auth) would leave s_peer stale and QoS the wrong address
+        // (fix-list #2). ACL_CONN_CMPL fires for both fresh and resumed links and carries the real
+        // peer, so it is the authoritative source; the bond seed remains only the device-kick target.
+        if (param->acl_conn_cmpl_stat.stat == ESP_BT_STATUS_SUCCESS) {
+            memcpy(s_peer, param->acl_conn_cmpl_stat.bda, sizeof(esp_bd_addr_t));
+            ESP_LOGI(TAG, "ACL up: %02x:%02x:%02x:%02x:%02x:%02x -> QoS target",
+                     s_peer[0], s_peer[1], s_peer[2], s_peer[3], s_peer[4], s_peer[5]);
+        }
+        break;
     case ESP_BT_GAP_QOS_CMPL_EVT:
         ESP_LOGI(TAG, "GAP QoS set (stat=%d, t_poll=%" PRIu32 ") -> link pinned active",
                  param->qos_cmpl.stat, param->qos_cmpl.t_poll);
@@ -601,14 +614,7 @@ void pro_forget_host() {
     cancel_hid_kick();
     if (s_connected) esp_bt_hid_device_virtual_cable_unplug();
 
-    int nbonds = esp_bt_gap_get_bond_device_num();
-    if (nbonds > 0) {
-        esp_bd_addr_t bonds[8];
-        int n = nbonds > 8 ? 8 : nbonds;
-        if (esp_bt_gap_get_bond_device_list(&n, bonds) == ESP_OK) {
-            for (int i = 0; i < n; i++) esp_bt_gap_remove_bond_device(bonds[i]);
-        }
-    }
+    bt::clear_all_bonds();   // both BR/EDR and BLE tables: the identity bump invalidates all (fix #7)
     settings::bump_identity_generation();
     vTaskDelay(pdMS_TO_TICKS(200));   // let NVS commit + the unplug flush
     esp_restart();

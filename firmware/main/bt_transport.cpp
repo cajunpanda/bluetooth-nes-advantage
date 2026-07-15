@@ -3,7 +3,12 @@
 
 // Transport dispatch: pick one Ops table at boot and forward the neutral bt:: API to it.
 #include "bt_transport.hpp"
+
+#include <cstdlib>
 #include "esp_log.h"
+#include "esp_bt.h"
+#include "esp_gap_bt_api.h"
+#include "esp_gap_ble_api.h"
 
 static const char* TAG = "bt";
 
@@ -49,5 +54,34 @@ const char* directional_mode_name(uint8_t i) { return s_ops ? s_ops->directional
 
 void forget_host()                   { if (s_ops) s_ops->forget_host(); }
 void set_battery_level(uint8_t pct)  { if (s_ops) s_ops->set_battery_level(pct); }
+
+void clear_all_bonds() {
+    // See the header: forget invalidates bonds on both radios at once, so clear both tables here
+    // regardless of which one is live this boot (fix-list #7). Bonds live in the host-side bt_config
+    // NVS (shared by both stacks), so removal is reachable even though only one controller is up; the
+    // other stack simply reports 0 bonds if it has none. Guarded so a single-mode build still links.
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
+    int nc = esp_bt_gap_get_bond_device_num();
+    if (nc > 0) {
+        esp_bd_addr_t list[8];
+        int n = nc > 8 ? 8 : nc;
+        if (esp_bt_gap_get_bond_device_list(&n, list) == ESP_OK && n > 0) {
+            for (int i = 0; i < n; i++) esp_bt_gap_remove_bond_device(list[i]);
+            ESP_LOGI(TAG, "forget: cleared %d BR/EDR bond(s)", n);
+        }
+    }
+#endif
+#if defined(CONFIG_BT_BLE_ENABLED)
+    int nb = esp_ble_get_bond_device_num();
+    if (nb > 0) {
+        esp_ble_bond_dev_t* bl = (esp_ble_bond_dev_t*)malloc(sizeof(esp_ble_bond_dev_t) * nb);
+        if (bl && esp_ble_get_bond_device_list(&nb, bl) == ESP_OK) {
+            for (int i = 0; i < nb; i++) esp_ble_remove_bond_device(bl[i].bd_addr);
+            ESP_LOGI(TAG, "forget: cleared %d BLE bond(s)", nb);
+        }
+        free(bl);
+    }
+#endif
+}
 
 } // namespace bt
