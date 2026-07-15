@@ -28,8 +28,9 @@ You can play while charging.
 4. Play. The stick reconnects to the last host automatically on wake.
 
 **Nintendo Switch 2:** direct pairing is not possible for any open controller emulation, because
-the Switch 2 requires a Nintendo-signed device certificate. Use an 8BitDo USB Wireless Adapter or
-USB Adapter 2 in the dock; it bridges the stick's Pro Controller emulation to the Switch 2.
+the Switch 2 requires a Nintendo-signed device certificate. Use an
+[8BitDo USB Wireless Adapter 2](https://www.8bitdo.com/usb-wireless-adapter-2/) in the dock; it
+bridges the stick's Pro Controller emulation to the Switch 2.
 
 ## Gestures
 
@@ -96,6 +97,8 @@ Set the slider before or while you pair.
 
 ## Sleep and battery
 
+- Playtime on a full 1800 mAh cell: about 17 hours in Switch/Receiver mode, about 37 hours in BLE
+  mode. Standby lasts months.
 - Manual sleep: hold Start for 5 s. Hold Start to wake.
 - Auto-sleep after 90 seconds with no host, or 5 minutes idle while connected. Stays awake while
   charging.
@@ -104,6 +107,8 @@ Set the slider before or while you pair.
 ## Configuration and firmware updates
 
 Hold **A + B + Select** for 5 s. The stick restarts into config mode and advertises as "NES
-Advantage Config". Open the config page in Chrome or Edge (Web Bluetooth), connect, and change
+Advantage Config". The stick also boots straight into config mode if it cannot reach the controller
+board (a harness or solder fault): the red LED blinks and the config page shows "No controller
+detected". Toggle the player-select slider to test each side. Open the config page in Chrome or Edge (Web Bluetooth), connect, and change
 settings or flash new firmware over the air. It returns to normal play when you hold Start for
 3 s, or after 5 idle minutes. See [`../web/README.md`](../web/README.md).

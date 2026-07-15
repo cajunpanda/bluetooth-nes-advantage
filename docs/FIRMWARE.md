@@ -100,14 +100,11 @@ build time, and both are no-ops for BLE.
 
 - `tools/patch_bluedroid_sniff.py`: link-layer power management - a slave that never initiates
   sniff. Required for stable 8BitDo and Switch connections.
-- `tools/patch_bluedroid_hid_intr.py`: connection setup - no MITM link-key upgrade (which wedges
-  the ESP32 controller's encryption pause/resume), HID PSMs exempt from btm channel-security
-  gating (a connect racing SSP otherwise queues, re-authenticates, and times out refused),
-  completion of half-open HID connections (the 8BitDo USB Adapter 2 opens only the control
-  channel and expects the controller to open the interrupt channel, as a real Pro does),
-  immediate close of zombie channels left by superseded connect attempts, and real-Pro L2CAP MTU
-  (640). Required for the 8BitDo USB Adapter 2 (the Switch 2 bridge) and BlueRetro over BT
-  Classic; see `docs/switch_pro_protocol.md` "Connection direction".
+- `tools/patch_bluedroid_hid_intr.py`: connection setup. Five fixes that let a passive HID device
+  complete the handshake: no MITM link-key upgrade, HID PSMs exempt from channel-security gating,
+  completion of half-open connections, immediate close of zombie channels, and real-Pro L2CAP MTU
+  (640). Required for the 8BitDo USB Adapter 2 (the Switch 2 bridge) and BlueRetro over BT Classic.
+  Details in `docs/switch_pro_protocol.md` "Connection direction".
 
 ## Gestures
 
@@ -171,6 +168,11 @@ documented at the top of `bt_config.cpp` and mirrored in `web/index.html`; chang
 - Entry is a one-shot flag in `RTC_NOINIT_ATTR` memory, honored only when the reset reason is a
   software reset. Any cold boot returns to gameplay. The `config` bench-console command arms the
   same flag over serial, so config mode can be entered without the button gesture.
+- Boot also enters config mode when no controller is detected. A disconnected NES Advantage reads as
+  all-buttons-held (both CD4021 data lines idle-high), which would oscillate player-select and trip
+  the Select+Start transport gesture into a reboot loop. `NESController::diagnose()` catches this at
+  boot; config mode reports it as `wiring` in the INFO JSON (none/p1/p2/both), blinks the red LED,
+  and answers the `diag` console command. The `diag` command works in gameplay too.
 - Config mode brings up the battery monitor and streams a live INPUT frame (buttons, player-select,
   turbo rate) plus the device log (LOG), and takes console commands (CONSOLE) whose output it
   echoes back over LOG.

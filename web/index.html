@@ -38,7 +38,7 @@
     --screen-2:    oklch(0.250 0.012 150);
     --screen-line: oklch(0.330 0.012 150);
 
-    /* NES red — the one hot accent */
+    /* NES red: the one hot accent */
     --red:      oklch(0.555 0.192 27);
     --red-2:    oklch(0.490 0.190 27);
     --red-ink:  oklch(0.980 0.020 27);
@@ -189,7 +189,7 @@
   .pill[data-state="connecting"] { color: oklch(0.5 0.13 80); border-color: var(--warn); }
   .pill[data-state="connecting"] .dot { background: var(--warn); animation: pulse 1s ease-in-out infinite; }
 
-  /* ---- nav (sections) — POWER/RESET style slabs ---- */
+  /* ---- nav (sections): POWER/RESET style slabs ---- */
   .nav { display: flex; gap: 0.15rem; }
   .nav .tab {
     position: relative; background: none; border: 0; cursor: pointer;
@@ -347,6 +347,15 @@
     box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.5), inset 0 2px 10px oklch(0 0 0 / 0.55),
                 inset 0 0 30px oklch(0.4 0.05 150 / 0.06);
   }
+
+  /* =================== wiring alert =================== */
+  .wiring-alert {
+    margin-bottom: 1rem; padding: 0.85rem 1rem; border-radius: 10px;
+    background: var(--red-soft); border: 1px solid var(--red);
+    color: var(--ink); font-size: 0.9rem; line-height: 1.45;
+  }
+  .wiring-alert strong { color: var(--red-2); font-weight: 700; }
+  .wiring-alert .hint { display: block; margin-top: 0.4rem; color: var(--muted); font-size: 0.82rem; }
 
   /* =================== button tester (hero) =================== */
   .tester { padding: 1.15rem 1.1rem 1.25rem; }
@@ -635,6 +644,13 @@
         <!-- ---------- TEST ---------- -->
         <section class="tab-panel stack" data-tab="test" role="tabpanel">
 
+          <div class="wiring-alert" id="wiringAlert" hidden role="status">
+            <strong>No controller detected on J2.</strong> The board sees no NES Advantage on either
+            data line. Check the harness at J2 and the solder joints on the controller board.
+            <span class="hint">Toggle the player-select slider to test each side: if this clears on
+            P1 but not P2 (or the reverse), that side's DATA/CLOCK/LATCH wiring is the problem.</span>
+          </div>
+
           <div class="screen tester screwed" id="tester" data-live="0">
             <div class="tester-head">
               <span class="live"><span class="dot"></span>Controller test</span>
@@ -743,7 +759,8 @@
           <div class="panel" id="console" hidden>
             <div class="panel-head"><h2>Device console</h2><button type="button" id="conClear" class="hint-btn">clear</button></div>
             <p class="note" style="margin-bottom:0.6rem">The device's live log, plus config commands
-              (<code>help</code>, <code>get</code>, <code>batt</code>, <code>profile</code>, ...).</p>
+              (<code>help</code>, <code>get</code>, <code>batt</code>, <code>diag</code>,
+              <code>profile</code>, ...).</p>
             <div class="screen" id="conOut" aria-live="polite"></div>
             <div class="clip-row">
               <input type="text" id="conInput" placeholder="type a command, e.g. get" autocomplete="off" spellcheck="false" enterkeyhint="send">
@@ -868,6 +885,9 @@ function onInfo(dv) {
   $('d_build').textContent = info.build ?? '-';
   $('d_slot').textContent  = info.slot ?? '-';
   $('d_ident').textContent = info.ident ?? '-';
+  // Wiring: firmware reports 'none' when no controller drives either data line (the state that boots
+  // us into config mode). Banner tracks it live as the harness is checked. Absent field = old fw.
+  $('wiringAlert').hidden = (info.wiring ?? 'ok') !== 'none';
   $('fwRunning').textContent = info.fw ? `running v${info.fw} - ${info.slot ?? ''}` : '';
   if (!sawInput) paintBattery((info.batt == null || info.batt < 0) ? null : info.batt, 0);
   $('s_transport').value = String(info.transport ?? 0);

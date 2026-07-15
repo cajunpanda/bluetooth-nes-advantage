@@ -1,8 +1,8 @@
 # Installation
 
-How to install the Bluetooth NES Advantage board into an NES Advantage (NES-026) controller. This
-covers a board you built yourself and a prebuilt board or kit. No case cutting: the board replaces
-the controller's cable and the jack sits in the original cable hole.
+How to install the Bluetooth NES Advantage board into an NES Advantage (NES-026) controller. No
+case cutting: the board replaces the controller's cable and its jack sits in the original cable
+hole. This covers both a board you built yourself and a prebuilt board or kit.
 
 ## What you need
 
@@ -11,54 +11,75 @@ the controller's cable and the jack sits in the original cable hole.
   pre-flashed.
 - A 1S LiPo battery (JST-PH, 1500 to 2000 mAh) and an 8-pin JST-XH harness cable. See
   [Accessories and tools](HARDWARE.md#accessories-and-tools) for specific parts.
-- Insulating tape and a small screwdriver.
-- The 3D-printed DC jack plug (step 6).
+- A soldering iron, insulating tape, and a small screwdriver.
+- The 3D-printed DC jack plug (step 7).
 
 ## 1. Open the controller
 
-Remove the screws in the base and lift the back off. Full teardown video:
+Remove the screws in the base and lift off the metal back plate. Full teardown video:
 [NES Advantage Clean and Teardown](https://youtu.be/Sw1IDFrGwic).
 
-## 2. Wire the harness to the controller
+![Controller closed, back plate and original cable](images/install-step-1.jpg)
+![Controller opened, back plate removed](images/install-step-2.jpg)
 
-Wire the 8-pin harness from J2 to the controller. J2 pinout, matching the labels on the board silk:
+## 2. Remove the original cable
 
-| J2 pin | Signal | Controller side |
-|---|---|---|
-| 1 | DATA_0 | P1 4021 serial out |
-| 2 | LATCH | P1 4021 latch |
-| 3 | CLOCK_0 | P1 4021 clock |
-| 4 | DATA_1 | P2 4021 serial out |
-| 5 | CLOCK_1 | P2 4021 clock |
-| 6 | LATCH | P2 4021 latch |
-| 7 | +3.3V | Controller supply |
-| 8 | GND | Controller ground |
+The controller's flat cable is soldered to a row of pads along the bottom edge of the internal PCB.
+Desolder it. Those same pads carry the signals the board reads.
 
-The supply wire carries 3.3 V, and the latch line gets its own conductor to each shift register
-(pins 2 and 6 are the same net). The controller's internal schematic is in
+![Internal PCB with the original cable attached](images/install-step-3.jpg)
+
+![Harness wires soldered to the board pads](images/install-step-4.jpg)
+
+## 3. Solder the harness
+
+Solder the 8-pin JST-XH harness to the controller. J2 pinout, matching the labels on the board silk:
+
+| J2 pin | Signal  | Controller side    |
+| ------ | ------- | ------------------ |
+| 1      | DATA_0  | P1 4021 serial out |
+| 2      | LATCH   | P1 4021 latch      |
+| 3      | CLOCK_0 | P1 4021 clock      |
+| 4      | DATA_1  | P2 4021 serial out |
+| 5      | CLOCK_1 | P2 4021 clock      |
+| 6      | LATCH   | P2 4021 latch      |
+| 7      | +3.3V   | Controller supply  |
+| 8      | GND     | Controller ground  |
+
+The supply wire carries 3.3 V, and the latch line gets its own conductor to each shift register (J2
+pins 2 and 6 are the same net). The controller's internal schematic is in
 [`nes_advantage_schematic.svg`](nes_advantage_schematic.svg).
 
-![NES Advantage pin mapping](images/pin_mapping.jpg)
+![Signal map on the controller board](images/pin_mapping.jpg)
+![Harness soldered along the board edge](images/install-step-5.jpg)
+![All eight harness wires soldered](images/install-step-6.jpg)
 
-## 3. Connect the battery
+Route the wires clear of the joystick plate.
+J2.
 
-Check polarity against the board's + and - silk marks first; there is no standard JST-PH polarity.
-
-![Battery connector polarity](images/battery_connector_polarity.jpg)
+![Harness terminated in the JST-XH plug](images/install-step-7.jpg)
 
 ## 4. Place the board and battery
 
-Battery in the open floor area, board aligned so the jack sits in the original cable hole.
+Set the battery in the open floor area and plug the harness into J2, with the board aligned so its
+jack sits in the original cable hole.
 
-![Battery placement](images/battery_placement.jpg)
+![Battery placed in the case](images/install-step-8.jpg)
+![Board connected and seated at the cable hole](images/install-step-9.jpg)
 
-## 5. Insulate and reassemble
+## 5. Connect the battery
+
+Check polarity against the board's + and - silk marks first; there is no standard JST-PH polarity.
+
+![Battery connector polarity](/home/aaron/projects/bluetooth-nes-advantage/docs/images/battery_connector_polarity.jpg)
+
+## 6. Insulate and reassemble
 
 Put insulating tape on the metal back plate before reassembling.
 
 ![Back cover tape](images/back_cover.jpg)
 
-## 6. Fit the DC jack plug
+## 7. Fit the DC jack plug
 
 A 3D-printable plug fills the cable hole around the jack. Print it in transparent PLA so the status
 LEDs show through. STL and FreeCAD source:

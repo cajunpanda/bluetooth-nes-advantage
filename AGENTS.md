@@ -15,7 +15,7 @@ coupled artifacts:
 
 - Pin map: `firmware/main/board_config.h` and `docs/HARDWARE.md` describe the same pins and must stay
   in sync. If you change one, change the other.
-- Hardware (BOM, connection maps, power path): `docs/HARDWARE.md`
+- Hardware (BOM, connection maps, layout): `docs/HARDWARE.md`
 - Firmware build, architecture, sleep/wake, transports, config mode, latency: `docs/FIRMWARE.md`
 - Switch Pro protocol bytes: `docs/switch_pro_protocol.md`
 - The GATT contract is duplicated by design in `firmware/main/bt_config.cpp` and `web/index.html` (UUIDs,
@@ -66,8 +66,6 @@ write CLI outputs somewhere under the repo or `$HOME`.
   must stay on ADC1, and GPIO12 must never be used.
 - The NES DATA lines need opposite pull directions awake (pull-down) vs asleep (pull-up). They use
   the ESP32 internal pulls; R14/R15 on the board stay unpopulated.
-- The battery module is a stub that reports the battery as absent; battery monitoring and the
-  charging LEDs do not work until it is implemented (see `firmware/main/battery.cpp`).
 - Tests that need hands on the physical controller (button gestures, pairing against a console)
   require the user. Say what you want pressed and let them drive.
 

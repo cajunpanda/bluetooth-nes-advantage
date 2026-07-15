@@ -36,7 +36,7 @@ void apply_bt_identity();
 // Derive a stable BLE static-random address for the BLE transport, distinct from the Classic public
 // MAC. BR/EDR and BLE otherwise share the one chip BT address, so a dual-mode host that paired us
 // over Classic first folds the BLE HID into the same device record and never probes the LE HID
-// services (fix-list #5). Giving BLE its own address makes the host see two separate devices. The
+// services. Giving BLE its own address makes the host see two separate devices. The
 // address is derived from the factory MAC + identity generation (rotates on forget, like the base
 // MAC) with the two MSBs forced to 0b11 (BLE static-random requirement, and guarantees it differs
 // from the Espressif-OUI public MAC). out[] is a 6-byte esp_bd_addr_t.

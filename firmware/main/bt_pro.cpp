@@ -68,7 +68,7 @@ constexpr uint32_t kQosTpoll = 0x10;   // ~10 ms; pins the ACL link active (out 
 // Hosts that mimic the console's reconnect role (8BitDo USB Adapter 2, BlueRetro) therefore pair at
 // GAP level and then wait forever for us to connect; only the Switch's Change Grip/Order screen and
 // the older 8BitDo Retro Receiver initiate from their side. So: stay passive for a grace window
-// (host-initiated still wins, as before), then open the channels ourselves, with bounded retries so
+// (host-initiated still wins), then open the channels ourselves, with bounded retries so
 // a dead host can't pin the radio awake. See docs/switch_pro_protocol.md "Connection direction".
 esp_timer_handle_t s_kick_timer = nullptr;
 uint8_t s_kick_attempts = 0;
@@ -395,8 +395,8 @@ void bt_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t* param) {
         // The actually-connected host, captured before HID CONNECT so the QoS request there pins the
         // right link. s_peer is otherwise seeded from bonds[0] on a reconnect (see HIDD START); with
         // >=2 stored bonds, a resume from a host that is NOT bonds[0] and skips a fresh GAP auth (a
-        // stored link key resumes without re-auth) would leave s_peer stale and QoS the wrong address
-        // (fix-list #2). ACL_CONN_CMPL fires for both fresh and resumed links and carries the real
+        // stored link key resumes without re-auth) would leave s_peer stale and QoS the wrong address.
+        // ACL_CONN_CMPL fires for both fresh and resumed links and carries the real
         // peer, so it is the authoritative source; the bond seed remains only the device-kick target.
         if (param->acl_conn_cmpl_stat.stat == ESP_BT_STATUS_SUCCESS) {
             memcpy(s_peer, param->acl_conn_cmpl_stat.bda, sizeof(esp_bd_addr_t));
@@ -450,7 +450,7 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
         s_link = bt::LINK_ADVERTISING;
         // Start passive for both fresh pair and reconnect: hosts that initiate HID themselves (the
         // Switch "Change Grip/Order" screen, the 8BitDo Retro Receiver) get the grace window and
-        // connect exactly as before. Hosts that mimic the console's reconnect role and wait for the
+        // connect normally. Hosts that mimic the console's reconnect role and wait for the
         // controller to open the channels (8BitDo USB Adapter 2, BlueRetro, a console after a power
         // cycle) get the bounded device-initiated kick (arm_hid_kick). Device-initiating puts
         // Bluedroid's HID-device state machine into an initiator state that can strand a host's own
@@ -501,7 +501,7 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
         s_connected = false;
         s_link = bt::LINK_ADVERTISING;
         esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
-        arm_hid_kick(true);   // a power-cycled host waits for us to re-join (fix-list #9)
+        arm_hid_kick(true);   // a power-cycled host waits for us to re-join
         break;
     case ESP_HIDD_STOP_EVENT:
         ESP_LOGI(TAG, "HIDD STOP");
@@ -531,7 +531,7 @@ void pro_init() {
     // Modem sleep is compiled in for the BLE transport's power savings (see sdkconfig.defaults),
     // but Classic runs with it disabled: it must not touch the fragile Switch handshake, and it
     // saves nothing on the connected link anyway - the QoS-pinned active ACL (kQosTpoll below)
-    // keeps RX on regardless (measured 117.2 vs 116.9 mA, bench 2026-07-14).
+    // keeps RX on regardless.
     ESP_ERROR_CHECK(esp_bt_sleep_disable());
 #endif
 
@@ -614,7 +614,7 @@ void pro_forget_host() {
     cancel_hid_kick();
     if (s_connected) esp_bt_hid_device_virtual_cable_unplug();
 
-    bt::clear_all_bonds();   // both BR/EDR and BLE tables: the identity bump invalidates all (fix #7)
+    bt::clear_all_bonds();   // both BR/EDR and BLE tables: the identity bump invalidates all
     settings::bump_identity_generation();
     vTaskDelay(pdMS_TO_TICKS(200));   // let NVS commit + the unplug flush
     esp_restart();

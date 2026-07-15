@@ -57,7 +57,7 @@ void set_battery_level(uint8_t pct)  { if (s_ops) s_ops->set_battery_level(pct);
 
 void clear_all_bonds() {
     // See the header: forget invalidates bonds on both radios at once, so clear both tables here
-    // regardless of which one is live this boot (fix-list #7). Bonds live in the host-side bt_config
+    // regardless of which one is live this boot. Bonds live in the host-side bt_config
     // NVS (shared by both stacks), so removal is reachable even though only one controller is up; the
     // other stack simply reports 0 bonds if it has none. Guarded so a single-mode build still links.
 #if defined(CONFIG_BT_CLASSIC_ENABLED)

@@ -16,6 +16,7 @@
 #include "battery.hpp"
 #include "board_config.h"
 #include "bt_transport.hpp"
+#include "nes_controller.hpp"
 #include "settings.hpp"
 
 #if defined(CONFIG_BT_HCI_LOG_DEBUG_EN)
@@ -46,7 +47,7 @@ static int cmd_adc(int, char**) {
 }
 
 // `led r|g|b|all off|on`: drive an LED directly (active-low). Takes the LEDs away from the auto
-// state display until `led auto`. Used to bench-check indicators (e.g. the green charge LED).
+// state display until `led auto`. Bench-checks indicators (e.g. the green charge LED).
 static int cmd_led(int argc, char** argv) {
     if (argc == 2 && strcmp(argv[1], "auto") == 0) {
         app::set_led_auto(true);
@@ -64,6 +65,23 @@ static int cmd_led(int argc, char** argv) {
     if (all || strcmp(c, "g") == 0) gpio_set_level((gpio_num_t)LED_GREEN, lvl);
     if (all || strcmp(c, "b") == 0) gpio_set_level((gpio_num_t)LED_BLUE,  lvl);
     printf("LED %s -> %s\n", c, on ? "on" : "off");
+    return 0;
+}
+
+// `diag`: controller wiring status from the last poll. A live selected line never reads all-pressed,
+// so 0xFF on a line means it is deselected or disconnected; both 0xFF means no controller on J2.
+static int cmd_diag(int, char**) {
+    app::ControllerDiag d = app::controller_diag();
+    const char* s;
+    switch (NESController::classify(d.p1, d.p2)) {
+        case NESController::NES_OK_P1:   s = "P1 line live";   break;
+        case NESController::NES_OK_P2:   s = "P2 line live";   break;
+        case NESController::NES_OK_BOTH: s = "both lines live"; break;
+        default:                         s = "NO CONTROLLER - check the harness at J2"; break;
+    }
+    printf("controller: %s  (raw P1=0x%02X P2=0x%02X, 0xFF=deselected/disconnected)\n",
+           s, d.p1, d.p2);
+    printf("toggle the player-select slider to test each side: the live line follows the slider\n");
     return 0;
 }
 
@@ -190,6 +208,7 @@ static void register_cmds() {
     reg("adc",       "Raw battery ADC read (calibration)",             cmd_adc);
     reg("led",       "Drive an LED: led r|g|b|all on|off | led auto",  cmd_led);
     reg("get",       "Dump runtime state",                            cmd_get);
+    reg("diag",      "Controller wiring status (P1/P2 line liveness)",  cmd_diag);
     reg("profile",   "Set button profile (live): profile <n>",         cmd_profile);
     reg("dirmode",   "Set directional mode (live): dirmode <n>",       cmd_dirmode);
     reg("transport", "Set transport + reboot: transport classic|ble",  cmd_transport);

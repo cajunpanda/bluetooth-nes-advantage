@@ -88,6 +88,34 @@ void NESController::read() {
     if (_stateChanged[0] || _stateChanged[1]) _lastActivityMs = now_ms();
 }
 
+void NESController::sampleRaw(uint8_t& p1, uint8_t& p2) const {
+    p1 = p2 = 0;
+    gpio_set_level(_latch, 1);
+    esp_rom_delay_us(12);
+    gpio_set_level(_latch, 0);
+    for (int i = 0; i < 8; i++) {
+        p1 = (p1 << 1) | (gpio_get_level(_data1) ? 0 : 1);   // active-low: line low = pressed
+        p2 = (p2 << 1) | (gpio_get_level(_data2) ? 0 : 1);
+        gpio_set_level(_clk1, 1);
+        gpio_set_level(_clk2, 1);
+        esp_rom_delay_us(6);
+        gpio_set_level(_clk1, 0);
+        gpio_set_level(_clk2, 0);
+        esp_rom_delay_us(6);
+    }
+}
+
+NESController::ControllerState NESController::diagnose(int samples) const {
+    bool p1live = false, p2live = false;
+    for (int i = 0; i < samples; i++) {
+        uint8_t a, b;
+        sampleRaw(a, b);
+        if (a != 0xFF) p1live = true;
+        if (b != 0xFF) p2live = true;
+    }
+    return classify(p1live ? 0x00 : 0xFF, p2live ? 0x00 : 0xFF);
+}
+
 bool NESController::stateChanged(uint8_t player) const {
     return (player < 2) ? _stateChanged[player] : false;
 }

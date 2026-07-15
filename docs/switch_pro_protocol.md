@@ -196,7 +196,7 @@ fixed at build time by `tools/patch_bluedroid_hid_intr.py` (companion to the sni
    after the host's own connection superseded it, stock code logs "unknown cid" and ignores the
    open channel; the peer reaps it 16-30 s later and tears the whole session down with it. Fix:
    close unknown-but-open channels immediately.
-5. **MTU**: `HID_DEV_MTU_SIZE` raised 64 -> 640 to match a real Pro Controller's L2CAP config.
+5. **MTU**: `HID_DEV_MTU_SIZE` raised from 64 to 640 to match a real Pro Controller's L2CAP config.
 
 ## Input report modes: 0x3F by default, 0x30 on request
 
@@ -206,14 +206,6 @@ that mode with subcommand `0x03`. The Switch console and the 8BitDo adapters sen
 during their handshake; BlueRetro never sends `0x03` and reads `0x3F` reports. The firmware
 therefore starts every connection in `0x3F` mode (sent on change plus a ~100 ms keepalive) and
 switches to the continuous ~66 Hz `0x30` stream when subcommand `0x03` asks for it.
-
-Verified end-to-end against the 8BitDo USB Adapter 2 (fresh pair and resume): full handshake
-(0x30/0x48/0x03/0x40), adapter re-enumerates on USB as an active receiver (`2dc8:3106`), input
-events flow. The kick also gives the stored-bond boot path an active reconnect (a real-Pro
-behavior), though the Adapter 2 itself refuses incoming pages (`0x0d`) and instead pages us on its
-own retry schedule. Also verified against BlueRetro over BT Classic on a real NES (pair, stable
-link, gameplay); expect connect/disconnect churn for the first ~20 s after BlueRetro's pair button
-while its inquiry mode settles.
 
 ## ESP-IDF / Bluedroid notes
 

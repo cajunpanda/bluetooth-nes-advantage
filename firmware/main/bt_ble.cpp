@@ -177,7 +177,7 @@ esp_ble_adv_params_t s_adv_params = {
     .adv_type          = ADV_TYPE_IND,
     // Advertise from a static random address (set in ble_init), not the chip's public BT MAC, so a
     // dual-mode host that paired us over Classic first still sees the BLE gamepad as a separate device
-    // and enumerates its LE HID (fix-list #5).
+    // and enumerates its LE HID.
     .own_addr_type     = BLE_ADDR_TYPE_RANDOM,
     .peer_addr         = {0},
     .peer_addr_type    = BLE_ADDR_TYPE_PUBLIC,
@@ -276,8 +276,8 @@ void ble_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
             //
             // Peripheral (slave) latency 4 is the battery-life half of the request: it lets the
             // radio skip listening on up to 4 idle connection events, which with modem sleep powers
-            // the radio down between events (BLE connected ~114 -> ~61 mA at 240 MHz, ~94 -> ~41 mA
-            // at 80 MHz, bench 2026-07-14). Press latency is unchanged: a peripheral with pending
+            // the radio down between events (BLE connected draw ~114 to ~61 mA at 240 MHz, ~94 to
+            // ~41 mA at 80 MHz). Press latency is unchanged: a peripheral with pending
             // data still transmits at the next 7.5 ms event - latency only applies to idle listens.
             // Only host->device traffic (unused in gameplay) can be delayed. A host that refuses
             // simply grants latency 0 and we run at the old draw.
@@ -360,7 +360,7 @@ void ble_init() {
 
     // Give BLE its own static-random address (distinct from the Classic public MAC) before any
     // advertising starts, so a dual-mode host that paired us over Classic first still enumerates the
-    // LE HID instead of folding it into the classic device record (fix-list #5). own_addr_type in
+    // LE HID instead of folding it into the classic device record. own_addr_type in
     // s_adv_params is BLE_ADDR_TYPE_RANDOM to match. Set-random-address is async (completes on
     // ESP_GAP_BLE_SET_STATIC_RAND_ADDR_EVT); advertising only starts after the long HIDD-START ->
     // adv-data -> scan-rsp chain, so the address is in place well before the first ADV.
@@ -418,7 +418,7 @@ void ble_forget_host() {
     // Same forget semantics as Classic: clear every bond + rotate identity + reboot, so a forgotten
     // host stops auto-reconnecting to the old address.
     ESP_LOGW(TAG, "forget host -> remove bonds + rotate identity + reboot");
-    bt::clear_all_bonds();   // both BLE and BR/EDR tables: the identity bump invalidates all (fix #7)
+    bt::clear_all_bonds();   // both BLE and BR/EDR tables: the identity bump invalidates all
     settings::bump_identity_generation();
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_restart();

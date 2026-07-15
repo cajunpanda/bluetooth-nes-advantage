@@ -20,4 +20,10 @@ uint8_t player();                      // active player, 0 = P1
 uint8_t profile();                     // current button profile index
 uint8_t directional_mode();            // current directional mode index
 
+// Last raw controller sample, for the console `diag` command. p1/p2 are packed bit7=A..bit0=R
+// (1 = pressed); 0xFF is the disconnected/deselected sentinel. connected is false when both lines
+// read 0xFF (no controller on J2). Reads published state, so it never races the poll loop.
+struct ControllerDiag { uint8_t p1; uint8_t p2; bool connected; };
+ControllerDiag controller_diag();
+
 } // namespace app

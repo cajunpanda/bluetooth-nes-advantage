@@ -8,19 +8,6 @@ easiest with hot air or a hotplate. To fit a finished board into a controller, s
 Pin assignments here match the firmware (`firmware/main/board_config.h`). The KiCad project is in
 [`../hardware/`](../hardware/) and the schematic is ERC-clean.
 
-## Architecture
-
-- **MCU:** bare ESP32-WROOM-32E-N4 (4 MB), Bluetooth dual-mode. Single 3.3 V logic rail.
-- **Controller:** NES Advantage over an 8-pin JST-XH at 3.3 V. No 5 V rail, no level shifters.
-  Local decoupling is required at the controller.
-- **Power chain:** barrel jack (+5 V) to TP4056 charger to 1S LiPo (protected cell) to a discrete
-  load-share power path to a TPS63900 buck-boost to +3.3 V.
-- **Battery:** single LiPo about 1500 to 2000 mAh on JST-PH, about 0.5C charge. Protection is in
-  the cell.
-- **Programming and debug:** TC2030 Tag-Connect, pinned for the TC2030-FTDI-C232HD-DDHSP-0-DTR
-  USB-UART cable (its DTR/RTS drive BOOT/EN for auto-reset). Charge via the barrel jack only.
-- **Status:** 3 discrete R/G/B 0603 LEDs, ESP32-driven, active-low.
-
 ## PCB
 
 - Fab it from the KiCad project in [`../hardware/bt-nes-advantage-pcb/`](../hardware/bt-nes-advantage-pcb/): standard 2-layer, 1.6 mm, 78 x 36 mm.
@@ -56,9 +43,6 @@ variants.
 | J2 | 1 | JST S8B-XH-A(LF)(SN) | JST_XH_S8B-XH-A 1x08 | NES Advantage interface |
 | J3 | 1 | JST S2B-PH-K-S(LF)(SN) | JST_PH_S2B-PH-K 1x02 | 1S LiPo battery |
 | J4 | 1 | Tag-Connect TC2030-IDC | Tag-Connect_TC2030-IDC-FP 2x03 | UART program/debug, needs no part |
-
-One bulk-cap SKU: 22 uF is used everywhere a bulk cap is needed (the TPS63900 output requires
-22 uF). CFG1/CFG2/SEL strap straight to GND, so there are no 0 ohm parts.
 
 ## Accessories and tools
 
@@ -109,10 +93,9 @@ Once the board is built and flashed, install it into the controller: see [INSTAL
 | 3V3 | +3.3V | U3 VOUT; C1/C2 at module | |
 | GND | GND | plane; incl. module thermal pad | |
 
-Module power decoupling: C1 (22 uF) + C2 (100 nF) at the 3V3 pin. GPIO12 is unused (MTDI strap,
-never drive). The DATA lines use the ESP32 internal pulls because the two phases need opposite
-polarity (awake: pull-down for the all-1s player-select sentinel; ULP sleep: pull-up for lowest
-standby current), so a fixed external resistor cannot serve both. R14/R15 stay DNP.
+Module power decoupling: C1 (22 uF) + C2 (100 nF) at the 3V3 pin. GPIO12 (MTDI strap) must never be
+driven. The DATA lines use the ESP32 internal pulls (opposite polarity awake vs asleep), so R14/R15
+stay DNP.
 
 ### TP4056 charger (U2)
 
@@ -144,9 +127,6 @@ standby current), so a fixed external resistor cannot serve both. R14/R15 stay D
 | 10 | VIN | Vsys; C6 (22 uF) |
 | 11 | GND (EP) | GND |
 
-Output above 400 mA covers BT TX peaks (about 130 mA) with margin; the buck-boost spans both Vsys
-ranges (about 4.6 V plugged, 3.0 to 4.2 V on battery) with no dropout.
-
 ### Connectors
 
 - **J1 barrel jack:** +5V, GND. Aligned to the Advantage's existing cable hole.
@@ -167,34 +147,6 @@ ranges (about 4.6 V plugged, 3.0 to 4.2 V on battery) with no dropout.
 - `+BATT`: cell (J3) to TP4056 BAT (C5), power-path Q1 drain, and battery divider (R12).
 - `Vsys`: power-path output to TPS63900 VIN/EN (C6).
 - `+3.3V`: TPS63900 VOUT (C7) to U1, J2, pull-ups, LEDs.
-
-## Power path (load-share)
-
-A resistor-gated P-FET load-share (Q1, D7, R9, R10) isolates the system load from the cell whenever
-external power is present, so the TP4056 sees only the true battery current.
-
-```
-   +5V (jack / charger in) --+----------[ D7  SS14 ]----------+---- Vsys ---> TPS63900 VIN
-                             |                          +-----+------+
-                             +--[ R9 10k ]--+-- gate ---| G  Q1 PMOS |  S = Vsys
-                             |              |           +-----+------+  (AO3401A, D = +BATT)
-                             |          [ R10 1M ]            |
-                            GND            GND              +BATT  (cell to TP4056 BAT)
-```
-
-Q1 orientation matters (AN1149): drain on the battery, source on the load, so the body diode (D to
-S) points battery to Vsys.
-
-- **Plugged:** R9 much less than R10 pulls Q1's gate to about VIN, so Q1 is off and the cell is
-  isolated. Vsys is +5V minus the D7 forward drop (about 4.6 V) and runs the regulator while the
-  TP4056 charges the cell. With Vsys above +BATT the body diode is reverse-biased, so there is no
-  uncontrolled back-feed around the charger.
-- **Unplugged:** R10 pulls the gate to GND, so Q1 is on and +BATT feeds Vsys. D7 blocks the
-  Vsys-to-+5V back-feed. During the brief gate transition at unplug, the body diode carries the
-  load until the channel turns on, so handover is seamless.
-
-An ideal-diode controller (for example LM66100) can replace D7 in the same slot to reclaim the
-roughly 0.5 V plugged-mode drop if needed.
 
 ## Layout notes
 

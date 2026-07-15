@@ -72,7 +72,7 @@ void        set_battery_level(uint8_t pct);
 // Remove EVERY stored bond on BOTH transports (BR/EDR and BLE), not just the active one. A forget
 // rotates our BT identity, which invalidates all bonds at once; clearing only the live transport
 // leaves the other's table to strand a host that can no longer recognise our rotated address on the
-// next transport switch (fix-list #7). Both bond tables are host-side (loaded from the shared
+// next transport switch. Both bond tables are host-side (loaded from the shared
 // bt_config NVS at bluedroid enable), so this is reachable with either radio live. Call from a
 // transport's forget_host, before the identity bump + reboot.
 void        clear_all_bonds();

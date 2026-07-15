@@ -59,6 +59,7 @@ static bool     s_start_release_required = false;   // set on Start-wake; blocks
 static bool     s_led_auto = true;                  // false = console owns the LEDs (see app::set_led_auto)
 static bool     s_sleep_requested = false;          // console `sleep`: enter deep sleep from the loop
 static bool     s_sleep_inhibit = false;            // bench: suppress idle/disconnect auto-sleep
+static uint8_t  s_raw_p1 = 0xFF, s_raw_p2 = 0xFF;   // last raw controller sample (for `diag`)
 
 static inline int64_t now_ms() { return esp_timer_get_time() / 1000; }
 
@@ -300,6 +301,9 @@ void set_directional_mode(uint8_t m) {
     settings::set_directional_mode(s_dirmode);
     ESP_LOGI(TAG, "directional mode -> %u (%s)", s_dirmode + 1, bt::directional_mode_name(s_dirmode));
 }
+ControllerDiag controller_diag() {
+    return { s_raw_p1, s_raw_p2, !(s_raw_p1 == 0xFF && s_raw_p2 == 0xFF) };
+}
 } // namespace app
 
 extern "C" void app_main(void) {
@@ -333,6 +337,16 @@ extern "C" void app_main(void) {
 
     nes = new NESController(NES_CLK_P1, NES_CLK_P2, NES_LATCH, NES_DATA_P1, NES_DATA_P2);
     nes->begin();
+
+    // Wiring check first: a disconnected controller reads as all-buttons-held, which oscillates
+    // player-select and trips the Select+Start transport gesture into a reboot loop. If nothing is
+    // driving either DATA line, boot into BLE config/OTA mode instead, where the web page's live
+    // tester shows the fault and can reflash. enter_config_mode() reboots (does not return).
+    if (nes->diagnose() == NESController::NES_NO_SIGNAL) {
+        ESP_LOGW(TAG, "no NES Advantage detected on J2 (both data lines idle-high) -> config mode");
+        enter_config_mode();
+    }
+
     nes->read();
     s_player = nes->getPlayerSelection();
     nes->setPlayerSelectionCallback(on_player_change);
@@ -360,6 +374,15 @@ extern "C" void app_main(void) {
     TickType_t last_log = 0;
     while (true) {
         nes->read();
+
+        // Publish the raw sample for the `diag` console command (bit7=A..bit0=R, 1=pressed;
+        // 0xFF = deselected/disconnected sentinel).
+        { uint8_t p1 = 0, p2 = 0;
+          for (int i = 0; i < 8; i++) {
+              p1 = (p1 << 1) | (nes->getButtonState(0, i) ? 1 : 0);
+              p2 = (p2 << 1) | (nes->getButtonState(1, i) ? 1 : 0);
+          }
+          s_raw_p1 = p1; s_raw_p2 = p2; }
 
         if (nes->stateChanged(0) || nes->stateChanged(1)) {
             bt::set_input(read_input(s_player), s_profile, s_dirmode);

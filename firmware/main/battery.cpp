@@ -20,9 +20,9 @@ static const char* TAG = "battery";
 #define BATT_ADC_CHANNEL    ADC_CHANNEL_6      // GPIO34, ADC1
 #define BATT_ADC_ATTEN      ADC_ATTEN_DB_12    // ~0..3.1 V; divided 4.2 V cell reads ~2.1 V
 #define BATT_DIVIDER_NUM    2                  // (R12 + R13) / R13
-#define BATT_CAL_PERMILLE   987                // trim from DPS sweep (fw read +1.3%, pure gain)
+#define BATT_CAL_PERMILLE   987                // gain trim for divider + ADC error; 1000 = no trim
 #define BATT_CHARGE_OFFSET_MV 55               // while charging, strip the charge-current IR rise
-                                               // (measured ~58 mV = 0.78 A * ~75 mohm at full Ichg)
+                                               // (~0.78 A Ichg * ~75 mohm cell ESR)
 #define BATT_OVERSAMPLE     32
 #define BATT_SETTLE_MS      300                 // ~6 RC of the 500k * 100 nF sense node
 #define BATT_PRESENT_MV     2800                // below this, treat the cell as absent

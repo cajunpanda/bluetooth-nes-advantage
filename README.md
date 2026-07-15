@@ -5,7 +5,8 @@ Nintendo Switch, an 8BitDo NES Retro Receiver (for a real NES), and PCs, phones,
 over BLE. No case cutting and no added buttons: everything runs from the stick's own controls,
 and it charges through the original cable hole.
 
-![NES Advantage](docs/images/main.jpg)
+![NES Advantage with the Bluetooth board](docs/images/hero-2.jpg)
+![Bluetooth NES Advantage board](docs/images/hero-1.jpg)
 
 ## How it works
 
@@ -30,6 +31,8 @@ Turbo, slow motion, and the player-select slider all work as originally designed
 - Turbo and slow motion work as normal
 - Player-select slider: in BLE mode the stick exposes two gamepads for take-turns play
 - Wake on button press from a deep sleep that draws microamps
+- Battery life on an 1800 mAh cell: about 17 hours in Switch/Receiver mode, about 37 hours in
+  BLE mode, months of standby
 - Low input latency (send-on-change, 7.5 ms BLE connection interval)
 - Browser-based configuration and over-the-air firmware updates, no cable needed
 - RGB status LEDs, battery level monitoring, 5 V barrel jack charging
@@ -44,7 +47,7 @@ Start with the guide that fits you:
 - **Installing the mod in your controller:** [docs/INSTALL.md](docs/INSTALL.md). Wiring the harness,
   fitting the battery and board, insulating tape, and the 3D-printed jack plug.
 - **Building your own kit:** [docs/HARDWARE.md](docs/HARDWARE.md). PCB, bill of materials, board
-  assembly, connection maps, and the power path.
+  assembly, and connection maps.
 - **Building and customizing firmware:** [docs/FIRMWARE.md](docs/FIRMWARE.md). Toolchain, module
   layout, architecture, and the config/OTA path.
 

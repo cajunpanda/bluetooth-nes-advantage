@@ -23,11 +23,41 @@ public:
     static constexpr uint8_t BUTTON_LEFT   = 6;
     static constexpr uint8_t BUTTON_RIGHT  = 7;
 
+    // Wiring diagnosis. A live, selected data line always carries at least one released button
+    // (Up/Down and Left/Right are mutually exclusive, so it can never read all-pressed), so a line
+    // that reads the all-pressed sentinel (0xFF) is deselected or disconnected. Both lines at 0xFF
+    // means no controller is driving either line: nothing is wired to J2 (or both DATA lines are
+    // broken). Toggling the player-select slider moves the live line, so P1-only / P2-only wiring
+    // faults show as one side going live and the other staying at the sentinel.
+    enum ControllerState : uint8_t {
+        NES_OK_P1,       // P1 line live (P1 selected and connected)
+        NES_OK_P2,       // P2 line live
+        NES_OK_BOTH,     // both lines live
+        NES_NO_SIGNAL,   // both lines idle-high: no controller detected on J2
+    };
+
     NESController(gpio_num_t clkPin1, gpio_num_t clkPin2, gpio_num_t latchPin,
                   gpio_num_t dataPin1, gpio_num_t dataPin2);
 
     void begin();                                   // configure GPIOs
     void read();                                    // latch + clock out 8 bits for both players
+
+    // Active raw sample of both DATA lines, packed bit7=A..bit0=R, 1=pressed (line low). A high-Z or
+    // disconnected line reads 0xFF. Does not disturb read()/gameplay state, so it is safe to call
+    // outside the main poll loop (e.g. the boot wiring diagnostic).
+    void sampleRaw(uint8_t& p1, uint8_t& p2) const;
+
+    // Sample a few times and classify which lines are live. Biased toward "present": reports
+    // NES_NO_SIGNAL only when no line drives across the whole window.
+    ControllerState diagnose(int samples = 6) const;
+
+    static ControllerState classify(uint8_t p1, uint8_t p2) {
+        bool p1live = p1 != 0xFF, p2live = p2 != 0xFF;
+        if (p1live && p2live) return NES_OK_BOTH;
+        if (p1live)           return NES_OK_P1;
+        if (p2live)           return NES_OK_P2;
+        return NES_NO_SIGNAL;
+    }
 
     bool stateChanged(uint8_t player) const;
     bool getButtonState(uint8_t player, uint8_t button) const;

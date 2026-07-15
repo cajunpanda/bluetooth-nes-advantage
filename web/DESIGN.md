@@ -5,8 +5,7 @@ NES rendered as UI. One self-contained `index.html` (no build, no external
 assets). Committed color strategy: two-tone **molded grey plastic** carries the
 surface, a single **NES red** carries every active state and primary action, and
 a dark **CRT screen** inset holds the live readouts (the button tester, the
-turbo meters, the device log). You are looking at the console, and through the
-screen, into it.
+turbo meters, the device log).
 
 ## Theme
 
@@ -67,14 +66,14 @@ display font, no pixel font, the retro is carried by color and molding):
   Hz, mV), the device log and console, the P1/P2 chip, equipment micro-labels.
 - Fixed rem scale, tight ratio (~1.15), product register. No `clamp()` display
   sizes. Wordmark is a letter-spaced bold sans set in a red stripe (an NES
-  title-bar nod) — never a pixel typeface.
+  title-bar nod), never a pixel typeface.
 
 Micro-labels (`.label-mono`): mono, uppercase, 0.12em tracking, `--muted`. These
 are diegetic equipment labeling (`PLAYER`, `TURBO A`, `POWER`), deliberately not
 the tracked-uppercase marketing eyebrow, they sit on controls, not above every
 section.
 
-## Layout — front-panel console
+## Layout: front-panel console
 
 - Content max-width ~46rem. Breakpoint at **820px**, same skeleton as the sibling
   GameBoy HiFi panel (rail + main, `display: contents` dissolve on mobile).

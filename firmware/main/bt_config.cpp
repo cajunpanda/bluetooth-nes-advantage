@@ -109,11 +109,24 @@ bool     s_ota_active = false;
 uint32_t s_ota_size = 0, s_ota_recv = 0, s_ota_acked = 0, s_ota_expect_crc = 0, s_ota_crc = 0;
 int64_t  s_ota_last_data_ms = 0;   // for the stall watchdog (so a hung OTA can't trap config mode)
 
+// Controller wiring status (NESController::ControllerState), updated by the poll loop and surfaced
+// in the INFO JSON + `diag` command + red LED. A disconnected controller boots straight here.
+uint8_t s_wiring = 0xff;   // 0xff = not yet sampled
+const char* wiring_str(uint8_t w) {
+    switch (w) {
+        case NESController::NES_OK_P1:   return "p1";
+        case NESController::NES_OK_P2:   return "p2";
+        case NESController::NES_OK_BOTH: return "both";
+        default:                         return "none";   // NES_NO_SIGNAL / unsampled
+    }
+}
+
 static inline int64_t now_ms() { return esp_timer_get_time() / 1000; }
 static inline void touch() { s_last_activity_ms = now_ms(); }
 
-// --- LED (blue blink = config mode; harmless if unpopulated) -----------------------------------
+// --- LEDs (blue = config mode; red = no controller detected; harmless if unpopulated) ----------
 void led_config_on(bool on) { gpio_set_level((gpio_num_t)LED_BLUE, on ? 0 : 1); }
+void led_fault_on(bool on)  { gpio_set_level((gpio_num_t)LED_RED,  on ? 0 : 1); }
 
 // --- INFO JSON ---------------------------------------------------------------------------------
 char s_info_buf[480];
@@ -127,6 +140,7 @@ void build_info_json() {
     cJSON_AddStringToObject(root, "build", __DATE__ " " __TIME__);
     cJSON_AddStringToObject(root, "slot", running ? running->label : "?");
     cJSON_AddNumberToObject(root, "batt", battery::present() ? battery::level_percent() : -1);
+    cJSON_AddStringToObject(root, "wiring", wiring_str(s_wiring));   // none/p1/p2/both (J2 harness)
     cJSON_AddNumberToObject(root, "ident", settings::identity_generation());
     cJSON_AddNumberToObject(root, "transport", settings::transport());
     cJSON_AddNumberToObject(root, "profile", settings::profile());
@@ -383,8 +397,14 @@ void console_exec(const uint8_t* val, uint16_t len) {
     if (!cmd) return;
 
     if (!strcmp(cmd, "help")) {
-        con_out("commands: help, get, batt, transport classic|ble, profile <n>, dirmode <n>, "
+        con_out("commands: help, get, batt, diag, transport classic|ble, profile <n>, dirmode <n>, "
                 "forget, reboot\n");
+    } else if (!strcmp(cmd, "diag")) {
+        const char* w = s_wiring == NESController::NES_OK_P1   ? "P1 line live"
+                      : s_wiring == NESController::NES_OK_P2   ? "P2 line live"
+                      : s_wiring == NESController::NES_OK_BOTH ? "both lines live"
+                      : "NO CONTROLLER - check the harness at J2";
+        con_out("controller: %s (toggle the player-select slider to test each side)\n", w);
     } else if (!strcmp(cmd, "get")) {
         const bt::Ops* o = ops_now();
         uint8_t pr = settings::profile();          if (pr >= o->num_profiles()) pr = 0;
@@ -686,6 +706,14 @@ void run() {
                 last_player = player; prevA = prevB = false; hzA = hzB = 0; lastRiseA = lastRiseB = t;
             }
 
+            // Wiring status from both DATA lines (0xFF sentinel = deselected/disconnected). Republish
+            // INFO on change so the web UI's banner updates live as the harness is checked/fixed.
+            uint8_t l1 = 0, l2 = 0;
+            for (int i = 0; i < 8; i++) { l1 = (l1 << 1) | (nes.getButtonState(0, i) ? 1 : 0);
+                                          l2 = (l2 << 1) | (nes.getButtonState(1, i) ? 1 : 0); }
+            uint8_t wiring = NESController::classify(l1, l2);
+            if (wiring != s_wiring) { s_wiring = wiring; publish_info(true); }
+
             // Turbo rate: firing frequency of A/B from their rising edges. A held (non-turbo) button
             // gives one edge then decays to 0; only the rapid turbo pulse train sustains a rate.
             bool a = nes.getButtonState(player, NESController::BUTTON_A);
@@ -699,8 +727,11 @@ void run() {
             if (t - lastRiseB > 350) hzB = 0;
 
             // On-controller escape: Start held ~3 s -> gameplay. Check only the ACTIVE player; the
-            // deselected line reads all-8-high (the player-select sentinel).
-            if (nes.getButtonState(player, NESController::BUTTON_START)) {
+            // deselected line reads all-8-high (the player-select sentinel). Gated on a live
+            // controller: a disconnected stick reads as all-buttons-held, and treating that phantom
+            // Start as an escape would bounce straight back to gameplay and loop.
+            if (s_wiring != NESController::NES_NO_SIGNAL &&
+                nes.getButtonState(player, NESController::BUTTON_START)) {
                 if (start_held_since == 0) start_held_since = t;
                 else if (t - start_held_since > kEscapeHoldMs) {
                     ESP_LOGW(TAG, "Start held -> exit config mode to gameplay");
@@ -740,6 +771,7 @@ void run() {
         if (t - last_house_ms >= 100) {
             last_house_ms = t;
             led_config_on(s_connected ? true : (t / 250) % 2 == 0);   // solid connected, blink waiting
+            led_fault_on(s_wiring == NESController::NES_NO_SIGNAL && (t / 250) % 2 == 0);  // no controller
             if (!s_ota_active && t - s_last_activity_ms > kIdleTimeoutMs) {
                 ESP_LOGW(TAG, "config mode idle %llds -> reboot to gameplay",
                          (long long)(kIdleTimeoutMs / 1000));
