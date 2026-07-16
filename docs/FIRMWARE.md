@@ -53,6 +53,21 @@ The blue LED blinks on boot (pairing mode). To flash the separate images instead
 `bt-nes-advantage.bin`, pass them to the same `write_flash`: `0x1000 bootloader.bin 0x8000
 partitions.bin 0xf000 ota_data_initial.bin 0x20000 firmware.bin`.
 
+### The merged image erases settings and pairings; the separate images do not
+
+`nvs` lives at `0x9000..0xF000`, between the partition table and `otadata`. A raw merged image is
+one contiguous blob from `0x0`, so `write_flash 0x0 bt-nes-advantage.bin` pads that hole with `0xFF`
+and takes NVS with it: bonds, transport, profile, directional mode, and the identity generation all
+reset. That is correct for a blank board and wrong for anything else. The four separate images skip
+the hole and leave NVS intact, which is why the benchmux flash command above uses them.
+
+**A firmware release must not erase NVS unless that release actually breaks the NVS schema.** Losing
+a user's pairings and settings on a routine update is not an acceptable cost of shipping a
+convenient single file. When cutting a release, either build the full-flash asset with
+`esptool.py merge_bin --format hex` (Intel HEX preserves the gap, so NVS survives), or keep the raw
+merged image strictly for blank boards and say so in the release notes. On a genuine schema break,
+erasing is the point: do it deliberately and call it out.
+
 ## Module layout (`main/`)
 
 | File | Role |
