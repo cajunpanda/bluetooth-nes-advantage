@@ -7,7 +7,10 @@
 #include <cstdlib>
 #include "esp_log.h"
 #include "esp_bt.h"
+#include "nvs.h"
+#if defined(CONFIG_BT_CLASSIC_ENABLED)
 #include "esp_gap_bt_api.h"
+#endif
 #include "esp_gap_ble_api.h"
 
 static const char* TAG = "bt";
@@ -57,9 +60,20 @@ void set_battery_level(uint8_t pct)  { if (s_ops) s_ops->set_battery_level(pct);
 
 void clear_all_bonds() {
     // See the header: forget invalidates bonds on both radios at once, so clear both tables here
-    // regardless of which one is live this boot. Bonds live in the host-side bt_config
-    // NVS (shared by both stacks), so removal is reachable even though only one controller is up; the
-    // other stack simply reports 0 bonds if it has none. Guarded so a single-mode build still links.
+    // regardless of which one is live this boot. Bonds live in NVS, so removal is reachable even
+    // though only one controller is up; a stack with no bonds simply clears nothing. Guarded so a
+    // single-mode build still links.
+
+    // BTstack (Classic Switch Pro) keeps its link keys in its own NVS namespace. Erase the whole
+    // namespace rather than calling gap_delete_all_link_keys(): that API only works on the boot
+    // where BTstack is the live stack, and it must run on the run loop; this works from any boot.
+    nvs_handle_t h;
+    if (nvs_open("BTstack", NVS_READWRITE, &h) == ESP_OK) {
+        if (nvs_erase_all(h) == ESP_OK && nvs_commit(h) == ESP_OK) {
+            ESP_LOGI(TAG, "forget: cleared BTstack link keys");
+        }
+        nvs_close(h);
+    }
 #if defined(CONFIG_BT_CLASSIC_ENABLED)
     int nc = esp_bt_gap_get_bond_device_num();
     if (nc > 0) {
