@@ -728,10 +728,13 @@ void btstack_task(void*) {
     gap_set_page_timeout(0x2000);
     gap_ssp_set_io_capability(SSP_IO_CAPABILITY_NO_INPUT_NO_OUTPUT);   // "just works", no PIN
     gap_ssp_set_auto_accept(1);
-    // Secure Connections host support: the Switch 2 reads our LMP feature pages right after the
-    // ACL comes up. Bluedroid could not advertise this bit without patching (ESP-IDF vetoes SC on
-    // ESP32 as an AES-CCM precaution); BTstack advertises it whenever the controller supports it,
-    // which this one does. The Switch 1 and 8BitDo hosts ignore the bit.
+    // Secure Connections host support: on, which is also BTstack's default (hci.c sets
+    // secure_connections_enable at init) and therefore what every known-good BTstack Pro emulation
+    // on this controller runs with. It is tempting to turn this off on the theory that a real Pro
+    // Controller is a Bluetooth 3.0 device that cannot do SC at all, so claiming it is unfaithful -
+    // but that was tried against the Switch 2 and changed nothing, and it deviates from the
+    // validated configuration for no measured gain. The call is spelled out rather than left
+    // implicit so the next person does not have to re-derive the default.
     gap_secure_connections_enable(true);
 
     l2cap_init();

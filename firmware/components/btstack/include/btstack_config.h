@@ -14,8 +14,15 @@
 #define HAVE_FREERTOS_TASK_NOTIFICATIONS
 #define HAVE_MALLOC
 
-// HCI Controller to Host Flow Control - required for the ESP32 VHCI transport
-#define ENABLE_HCI_CONTROLLER_TO_HOST_FLOW_CONTROL
+// HCI controller-to-host flow control is deliberately NOT enabled: this controller does not
+// implement it. Read_Local_Supported_Commands octet 10 reads 0xFC - bit 0
+// (Set_Controller_To_Host_Flow_Control) and bit 1 (Host_Buffer_Size) are both clear - and on the
+// wire Host_Buffer_Size is refused ("0E 04 05 33 0C 11", status 0x11 Unsupported Feature or
+// Parameter Value) at any parameters, while Set_Controller_To_Host_Flow_Control returns success as
+// a stub. With the define on, BTstack ignored that refusal, believed flow control was live, and
+// answered every inbound ACL packet with a Host_Number_Of_Completed_Packets the controller never
+// asked for - taking priority over all other commands in hci_run(). The VHCI transport does its own
+// backpressure in hci_ringbuffer, which is what actually protects us here.
 
 // Logging goes through printf -> the board's serial console (benchmux-visible)
 #define ENABLE_LOG_ERROR
@@ -38,7 +45,12 @@
 #define HCI_ACL_PAYLOAD_SIZE    (512 + 4)
 #define HCI_HOST_ACL_PACKET_LEN 512
 #define HCI_HOST_ACL_PACKET_NUM 8
-#define HCI_HOST_SCO_PACKET_LEN 0
+// SCO is unused, but the length still has to be in the spec's 0x01..0xFF range: at 0 the
+// controller rejects the whole Host_Buffer_Size command (seen on the wire: "0E 04 05 33 0C 11",
+// status 0x11 Unsupported Feature or Parameter Value). BTstack ignores that failure and enables
+// controller-to-host flow control anyway, leaving the controller believing we have no receive
+// buffers at all. Costs no RAM: the transport's ring sizes the SCO term by PACKET_NUM, which is 0.
+#define HCI_HOST_SCO_PACKET_LEN 255
 #define HCI_HOST_SCO_PACKET_NUM 0
 
 #endif
