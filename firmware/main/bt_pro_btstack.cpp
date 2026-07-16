@@ -771,6 +771,18 @@ void btstack_task(void*) {
                                 DEVICE_ID_VENDOR_ID_SOURCE_USB, kVendorId, kProductId, kVersion);
     sdp_register_service(did_sdp_buf);
 
+    // A real Pro Controller is a Bluetooth 3.0 device: it puts no security requirement on its HID
+    // channels at all. BTstack defaults to LEVEL_2 (authenticated + encrypted), which makes us
+    // strictly more demanding than the thing we are impersonating - so hosts that a real Pro is
+    // perfectly happy with get refused by us. Observed against the 8BitDo Retro Receiver: the link
+    // settles below LEVEL_2 and our own outgoing HID connect dies in
+    // l2cap_outgoing_channel_with_insufficient_security with 0x66 REFUSED_SECURITY, on a loop. The
+    // Switch 1 and 2 authenticate and encrypt properly so they never trip it; the receivers do not.
+    // The Bluedroid build patched the same two PSMs to level 0 for the same reason.
+    // Must precede hid_device_init(), which snapshots gap_get_security_level() when it registers
+    // both PSMs - calling it afterwards has no effect.
+    gap_set_security_level(LEVEL_0);
+
     hid_device_init(false, sizeof(kProReportMap), kProReportMap);
     // The console's 0x01 output reports are shorter than the 48 bytes our descriptor declares.
     // BTstack drops mismatched reports by default, which would silently swallow every subcommand.
