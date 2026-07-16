@@ -61,7 +61,7 @@ partitions.bin 0xf000 ota_data_initial.bin 0x20000 firmware.bin`.
 | `nes_controller.{hpp,cpp}` | CD4021 read and player-select |
 | `settings.{hpp,cpp}` | NVS settings: transport, profile, directional mode, identity generation |
 | `bt_transport.{hpp,cpp}` | Transport-neutral `bt::` API, dispatch to the active transport |
-| `bt_pro.cpp` | BT Classic Switch Pro transport and connection state machine |
+| `bt_pro_btstack.cpp` | BT Classic Switch Pro transport (BTstack) and connection state machine |
 | `bt_ble.cpp` | BLE HID transport, two HID services (P1/P2) for take-turns play |
 | `bt_config.{hpp,cpp}` | BLE config/OTA boot mode: GATT settings service plus `esp_ota` update |
 | `power.{hpp,cpp}` | ULP sleep polling, deep-sleep entry, post-wake RTC-GPIO release |
@@ -72,19 +72,22 @@ partitions.bin 0xf000 ota_data_initial.bin 0x20000 firmware.bin`.
 firmware over the air. `sdkconfig.defaults` holds the project Kconfig; key names can drift between
 IDF versions, so reconcile with `menuconfig` if you change IDF.
 
-## Pre-build Bluedroid patches
+## Two Bluetooth host stacks
 
-The `wroom32` build runs two small pre-build patches that make Bluedroid's Classic HID device
-behave like a real Pro Controller; both edit IDF source with no runtime API, so they must run at
-build time, and both are no-ops for BLE.
+One controller, two hosts, one of each per boot - selected by the transport setting:
 
-- `tools/patch_bluedroid_sniff.py`: link-layer power management - a slave that never initiates
-  sniff. Required for stable 8BitDo and Switch connections.
-- `tools/patch_bluedroid_hid_intr.py`: connection setup. Five fixes that let a passive HID device
-  complete the handshake: no MITM link-key upgrade, HID PSMs exempt from channel-security gating,
-  completion of half-open connections, immediate close of zombie channels, and real-Pro L2CAP MTU
-  (640). Required for the 8BitDo USB Adapter 2 (the Switch 2 bridge) and BlueRetro over BT Classic.
-  Details in `docs/switch_pro_protocol.md` "Connection direction".
+- **Classic (Switch Pro)** runs on **BTstack**, vendored in `firmware/components/btstack`
+  (see its README for the pinned version, what is vendored, and the license). The Classic HID
+  device has to behave like a real Pro Controller down to the link layer, and Bluedroid could not:
+  it is chatty on the ACL before authentication, cannot advertise Secure Connections host support
+  on the ESP32 without patching, and its inbound HID path needed a stack of build-time source
+  patches. The Switch 2 rejects it regardless. BTstack does all of this natively.
+- **BLE** (gameplay transport and the config/OTA boot mode) stays on **Bluedroid**.
+
+Bluedroid's Classic half is therefore compiled out (`CONFIG_BT_CLASSIC_ENABLED=n`), which also
+removes a `sdp_init` symbol clash with BTstack. Earlier builds carried five
+`tools/patch_bluedroid_*.py` pre-build patches to bend Bluedroid's Classic HID into shape; they
+are gone with it (recoverable from git history before the BTstack switch, if ever needed).
 
 ## Architecture
 
