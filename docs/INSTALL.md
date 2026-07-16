@@ -91,3 +91,16 @@ LEDs show through. STL and FreeCAD source:
 ## Done
 
 Power on by holding Start, then pair. See [MANUAL.md](MANUAL.md) for pairing, gestures, and LEDs.
+
+## Troubleshooting
+
+If the board can't reach the controller it boots into config mode with the red LED blinking, and the
+config page shows "No controller detected on J2". Common causes:
+
+- A loose harness or a cold or bridged solder joint at J2 or on the controller board.
+- A dirty player-select switch. If both players read as deselected the board sees no data; clean the
+  switch contacts.
+- The metal back plate shorting the J2 connector. Make sure it is insulated (step 6).
+
+In the config page's controller tester, toggle the player-select slider: if the warning clears on
+one side but not the other, that side's DATA/CLOCK/LATCH wiring is the problem.
