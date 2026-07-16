@@ -238,6 +238,13 @@ static int transport_open(void){
 #endif
 
         esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+#if defined(CONFIG_IDF_TARGET_ESP32) && defined(ENABLE_CLASSIC) && !defined(ENABLE_BLE)
+        // btna: the default config takes its mode from CONFIG_BTDM_CTRL_MODE_BTDM (dual-mode, for
+        // the BLE transport's boots), but esp_bt_controller_enable() demands the same mode the
+        // controller was initialized with - enabling Classic-only over a BTDM-initialized
+        // controller fails. Initialize it Classic-only to match the enable below.
+        bt_cfg.mode = ESP_BT_MODE_CLASSIC_BT;
+#endif
         ret = esp_bt_controller_init(&bt_cfg);
         if (ret) {
             log_error("transport: esp_bt_controller_init failed");

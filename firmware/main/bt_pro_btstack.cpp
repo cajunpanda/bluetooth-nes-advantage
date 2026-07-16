@@ -60,7 +60,7 @@ static const char* TAG = "bt_pro";
 
 // Bring-up switch: dumps every HCI packet as text to the serial console (benchmux-visible).
 // The Switch 2 handshake is only debuggable at this level - keep it off for release builds.
-// #define BTNA_HCI_DUMP 1
+#define BTNA_HCI_DUMP 1
 
 namespace {
 
