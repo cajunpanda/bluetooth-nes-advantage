@@ -58,9 +58,11 @@
 
 static const char* TAG = "bt_pro";
 
-// Bring-up switch: dumps every HCI packet as text to the serial console (benchmux-visible).
-// The Switch 2 handshake is only debuggable at this level - keep it off for release builds.
-#define BTNA_HCI_DUMP 1
+// Bring-up switch: uncomment to dump every HCI packet as text to the serial console
+// (benchmux-visible). Off by default - at the 66 Hz stream rate the trace is most of the serial
+// bandwidth and is not free on CPU. Turn it on to debug a handshake: pairing problems live below
+// the app log, and this is the only view of them.
+// #define BTNA_HCI_DUMP 1
 
 namespace {
 

@@ -23,6 +23,30 @@ identity right, answer the subcommands, and stream `0x30`. The descriptor still 
 
 Publish VID/PID via the SDP DI record, set the name and CoD, and be Connectable and Discoverable.
 
+### The CoD is a hard discovery gate on the Switch 2 (and the ordering matters)
+
+`0x002508` is not cosmetic. On the **Switch 2**, the Change Grip/Order inquiry pages a device **only
+if its CoD is exactly a real Pro's `0x002508`** — which includes the *Limited Discoverable* service
+class bit `0x2000`. Get this wrong and the console never even pages you; there is nothing to debug
+further up the stack. Proven by A/B against the console: a host advertising `0x002508` with an
+otherwise sloppy fingerprint (generic Intel MAC, desktop-junk EIR) was paged within ~2 s, while the
+board advertising `0x000508` with a byte-perfect Pro name, EIR and SDP was never paged at all. The
+Switch 1 accepts either. Neither console reads SDP before pairing, so SDP contents are not part of
+this gate.
+
+Two ordering traps, both about the *controller*, not the host stack:
+
+- **Set the CoD before inquiry scan is enabled.** The ESP32 controller latches the CoD into its
+  inquiry-response state at scan-enable and ignores later `Write_Class_of_Device` — the command
+  returns success and the radio keeps answering the old value. Under BTstack, `gap_set_class_of_device()`
+  before `hci_power_control(HCI_POWER_ON)` lands in the init sequence, which is correct by
+  construction.
+- **Do not try to reach it via GAP "limited discoverable" mode.** The ESP32 then answers only the
+  *limited* inquiry code (LIAC), and the console inquires with the *general* one (GIAC), so you
+  become invisible. The bit has to come from the CoD value itself. (Bluedroid actively fought this:
+  `BTM_SetDiscoverability(GENERAL)` force-*clears* the limited bit on every scan-mode change, which
+  is why the Bluedroid build needed a source patch to make that strip additive-only.)
+
 ## Input report 0x30 (standard full report)
 
 Byte 0 is the report ID when sent raw. On the wire an interrupt-channel input report is
@@ -232,9 +256,30 @@ switches to the continuous ~66 Hz `0x30` stream when subcommand `0x03` asks for 
   tasks with `btstack_run_loop_execute_on_main_thread()`.
 - Stamp the device's real BD_ADDR (`gap_local_bd_addr()`) into the 0x02 device-info reply MAC field.
 - Do not go silent between handshake packets; answer subcommands within a few ms.
+- Do **not** define `ENABLE_HCI_CONTROLLER_TO_HOST_FLOW_CONTROL`. This controller does not implement
+  it (`Read_Local_Supported_Commands` octet 10 = `0xFC`: `Set_Controller_To_Host_Flow_Control` and
+  `Host_Buffer_Size` both clear) and refuses `Host_Buffer_Size` on the wire with status `0x11` at any
+  parameters, while stubbing the flow-control enable out as success. BTstack believes the lie and
+  then answers every inbound ACL packet with a `Host_Number_Of_Completed_Packets` nobody asked for,
+  which preempts every other command in `hci_run()`. The VHCI transport does its own backpressure.
 - Debugging: `hci_dump_init(hci_dump_embedded_stdout_get_instance())` puts a full HCI trace on the
-  serial console (`BTNA_HCI_DUMP` in `bt_pro_btstack.cpp`). This is the only way to see the Switch 2
-  handshake.
+  serial console (`BTNA_HCI_DUMP` in `bt_pro_btstack.cpp`, off by default). This is the only way to
+  see a handshake; pairing failures happen entirely below the app log.
+
+## When a Switch 2 refuses to pair with anything
+
+A Switch 2 can wedge into a state where it **refuses SSP with every device**: it pages you,
+completes the ACL, sets your link supervision timeout, then detaches with **Authentication Failure
+(0x05) ~50-90 ms in, having never sent a single SSP packet** — no IO Capability Request, no User
+Confirmation, no Link Key Notification. There is nothing wrong with your firmware.
+
+**Power-cycle the console** (hold Power → Power Options → Turn Off; sleep is not enough).
+
+Confirmed 2026-07-16 by three independent devices — this board (ESP32/BTstack), nxbt on an Intel
+AX211 (BlueZ), and a commercial 8BitDo controller — all rejected identically while the console was
+wedged, all fine after the reboot. Before ever believing this signature is your bug, reproduce it
+with a device you did not write. On the PC side also check your auto-accept SSP agent is registered:
+bluetoothd's default agent rejects the Just-Works confirmation and produces the identical 0x05.
 
 ## Sources
 
