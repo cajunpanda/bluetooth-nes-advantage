@@ -26,7 +26,7 @@ Publish VID/PID via the SDP DI record, set the name and CoD, and be Connectable 
 ### The CoD is a hard discovery gate on the Switch 2 (and the ordering matters)
 
 `0x002508` is not cosmetic. On the **Switch 2**, the Change Grip/Order inquiry pages a device **only
-if its CoD is exactly a real Pro's `0x002508`** — which includes the *Limited Discoverable* service
+if its CoD is exactly a real Pro's `0x002508`**, which includes the *Limited Discoverable* service
 class bit `0x2000`. Get this wrong and the console never even pages you; there is nothing to debug
 further up the stack. Proven by A/B against the console: a host advertising `0x002508` with an
 otherwise sloppy fingerprint (generic Intel MAC, desktop-junk EIR) was paged within ~2 s, while the
@@ -37,7 +37,7 @@ this gate.
 Two ordering traps, both about the *controller*, not the host stack:
 
 - **Set the CoD before inquiry scan is enabled.** The ESP32 controller latches the CoD into its
-  inquiry-response state at scan-enable and ignores later `Write_Class_of_Device` — the command
+  inquiry-response state at scan-enable and ignores later `Write_Class_of_Device`: the command
   returns success and the radio keeps answering the old value. Under BTstack, `gap_set_class_of_device()`
   before `hci_power_control(HCI_POWER_ON)` lands in the init sequence, which is correct by
   construction.
@@ -183,9 +183,9 @@ Hosts differ in who they expect to open them:
 
 - The Switch Change Grip/Order screen and the 8BitDo Retro Receiver open both channels themselves,
   promptly after auth.
-- The 8BitDo USB Adapter 2 and BlueRetro mimic the console's *reconnect* role: they expect the
-  controller to behave like a real Pro (which advertises `HIDReconnectInitiate` and opens the
-  channels itself). If the device stays passive they wait forever and give up after ~30 s.
+- BlueRetro mimics the console's *reconnect* role: it expects the controller to behave like a real
+  Pro (which advertises `HIDReconnectInitiate` and opens the channels itself). If the device stays
+  passive it waits forever and gives up after ~30 s.
 
 So `bt_pro_btstack.cpp` starts passive (host-initiated connects just work: BTstack's `hid_device`
 auto-accepts incoming CTRL/INTR) and arms a one-shot "kick" timer on pairing complete, on a bonded
@@ -204,37 +204,11 @@ BlueRetro is a third pattern: it does open both channels itself, but only ~3 s a
 an SDP query first), and it opens CTRL within milliseconds of the SSP link key - before encryption
 has settled.
 
-### Historical: what this cost under Bluedroid
-
-Bluedroid needed five build-time source patches (`tools/patch_bluedroid_hid_intr.py`, since
-deleted - see git history before the BTstack switch) to survive the above against the 8BitDo USB
-Adapter 2 and BlueRetro. They are recorded here because they document real ESP32/host quirks, and
-because a future BTstack bug may rhyme with one:
-
-1. **MITM link-key "upgrade" wedged the ESP32 controller.** Bluedroid's HID service registered with
-   `AUTHENTICATE|ENCRYPT`, and in SSP mode btm silently added a MITM requirement. We pair Just
-   Works (unauthenticated key), so when a host advertised IO caps making an authenticated key
-   possible (the Adapter 2 does; a console reports NoInputNoOutput and does not),
-   `btm_sec_check_upgrade` deleted the fresh key and re-authenticated the already-encrypted link.
-   The ESP32 controller's LMP encryption pause/resume did not survive it: ACL TX froze (no
-   Number-of-Completed-Packets, no Encryption Key Refresh Complete; occasionally an
-   `ASSERT_WARN lc_task.c 1556` controller crash) and both sides deadlocked for 30 s.
-   **Still relevant:** a real Pro uses Just-Works keys with no MITM, and this controller dislikes
-   re-authenticating a live encrypted link. BTstack does not do this by default.
-2. **Half-open connections were never completed** - stock Bluedroid only self-originated INTR when
-   it had originated CTRL, deadlocking with hosts that open CTRL and wait. BTstack's
-   `hid_device_connect()` opens CTRL then INTR itself.
-3. **The btm channel-security gate re-litigated security per HID L2CAP connect**, refusing a CTRL
-   connect that raced SSP pairing. BTstack has no equivalent gate.
-4. **Abandoned originate attempts left zombie channels** that the peer reaped 16-30 s later,
-   taking the session with it.
-5. **MTU**: `HID_DEV_MTU_SIZE` had to be raised from 64 to 640 to match a real Pro's L2CAP config.
-
 ## Input report modes: 0x3F by default, 0x30 on request
 
 A real Pro Controller powers up in simple input mode - report `0x3F` (2 button bytes, hat, four
 16-bit axes), sent on state change - and only streams full `0x30` reports after the host selects
-that mode with subcommand `0x03`. The Switch console and the 8BitDo adapters send `0x03 0x30`
+that mode with subcommand `0x03`. The Switch consoles and the 8BitDo Retro Receiver send `0x03 0x30`
 during their handshake; BlueRetro never sends `0x03` and reads `0x3F` reports. The firmware
 therefore starts every connection in `0x3F` mode (sent on change plus a ~100 ms keepalive) and
 switches to the continuous ~66 Hz `0x30` stream when subcommand `0x03` asks for it.
@@ -268,18 +242,20 @@ switches to the continuous ~66 Hz `0x30` stream when subcommand `0x03` asks for 
 
 ## When a Switch 2 refuses to pair with anything
 
-A Switch 2 can wedge into a state where it **refuses SSP with every device**: it pages you,
-completes the ACL, sets your link supervision timeout, then detaches with **Authentication Failure
-(0x05) ~50-90 ms in, having never sent a single SSP packet** — no IO Capability Request, no User
-Confirmation, no Link Key Notification. There is nothing wrong with your firmware.
+A Switch 2 can wedge into a state where it **refuses SSP with every device**, including commercial
+controllers: it pages you, completes the ACL, sets your link supervision timeout, then detaches with
+**Authentication Failure (0x05) ~50-90 ms in, having never sent a single SSP packet**: no IO
+Capability Request, no User Confirmation, no Link Key Notification.
 
 **Power-cycle the console** (hold Power → Power Options → Turn Off; sleep is not enough).
 
-Confirmed 2026-07-16 by three independent devices — this board (ESP32/BTstack), nxbt on an Intel
-AX211 (BlueZ), and a commercial 8BitDo controller — all rejected identically while the console was
-wedged, all fine after the reboot. Before ever believing this signature is your bug, reproduce it
-with a device you did not write. On the PC side also check your auto-accept SSP agent is registered:
-bluetoothd's default agent rejects the Just-Works confirmation and produces the identical 0x05.
+This signature is indistinguishable from a firmware bug and will happily absorb days. Two things
+that fake it, to rule out before believing your own code is at fault:
+
+- Reproduce with a device you did not write. If a stock controller is rejected too, the console is
+  the variable.
+- On a BlueZ host, check an auto-accept SSP agent is registered. bluetoothd's default agent rejects
+  the Just-Works confirmation and produces the identical 0x05.
 
 ## Sources
 

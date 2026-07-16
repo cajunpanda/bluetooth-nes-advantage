@@ -78,17 +78,10 @@ One controller, two hosts, one of each per boot - selected by the transport sett
 
 - **Classic (Switch Pro)** runs on **BTstack**, vendored in `firmware/components/btstack`
   (see its README for the pinned version, what is vendored, and the license). BTstack ships a real
-  HID *device* profile, so the Pro emulation is plain library calls: on Bluedroid the same thing
-  needed five build-time patches to its own source (`tools/patch_bluedroid_*.py`) to bend the
-  inbound HID path, the Class-of-Device handling, and Secure Connections support into shape. Moving
-  to BTstack deleted all five, dropped ~80 KB of flash, and matches the architecture the other
-  known-good ESP32 Pro emulations use.
-
-  Note for anyone reading the git history: this transport was written during a Switch 2 pairing
-  investigation, and the commit messages of the era claim Bluedroid *cannot* pair with a Switch 2.
-  **That was wrong** - the console was in a wedged state that rejects every device, cleared by a
-  power cycle (see `history/switch2-support.md`). Bluedroid would very likely pair too. The reasons
-  above are the real ones; do not repeat the Switch 2 claim.
+  HID *device* profile, so the Pro emulation is plain library calls; the same thing on Bluedroid
+  needed five build-time patches to its own source to bend the inbound HID path, Class-of-Device
+  handling, and Secure Connections support into shape. Moving to BTstack deleted all five and
+  dropped ~80 KB of flash.
 - **BLE** (gameplay transport and the config/OTA boot mode) stays on **Bluedroid**.
 
 Bluedroid's Classic half is therefore compiled out (`CONFIG_BT_CLASSIC_ENABLED=n`), which also

@@ -13,12 +13,10 @@
 // and CoD and drives everything over the subcommand handshake; the report descriptor only has to
 // parse.
 //
-// Why BTstack and not Bluedroid (which this replaces): the Switch 2 pages a Bluedroid device with
-// the right CoD, completes the ACL, then drops it (HCI reason 0x05) before ever starting Secure
-// Simple Pairing - not fixable from the application side (Secure Connections host support and
-// suppressing pre-auth L2CAP chatter were both verified on-air and neither unblocked it). BTstack
-// gives us the whole host stack, and its defaults already satisfy what a real Pro does: silent on
-// the ACL data plane until authenticated, SC host support advertised, no slave-initiated sniff.
+// Why BTstack and not Bluedroid (which this replaces): BTstack ships a real HID device profile, so
+// this is plain library calls. The same emulation on Bluedroid needed five build-time patches to
+// Bluedroid's own source to bend its inbound HID path, Class-of-Device handling, and Secure
+// Connections support into shape; BTstack's defaults already match what a real Pro does.
 //
 // Threading: BTstack is single-threaded. Everything below runs in the run-loop task except
 // pro_set_input/pro_clear_input/pro_set_battery_level (called from the app's poll loop), which
@@ -88,9 +86,9 @@ btstack_packet_callback_registration_t s_hci_event_cb;
 
 // --- Device-initiated HID connect ("kick") -------------------------------------------------------
 // A real Pro Controller advertises HIDReconnectInitiate and opens the HID L2CAP channels itself.
-// Hosts that mimic the console's reconnect role (8BitDo USB Adapter 2, BlueRetro) therefore pair at
-// GAP level and then wait forever for us to connect; only the Switch's Change Grip/Order screen and
-// the older 8BitDo Retro Receiver initiate from their side. So: stay passive for a grace window
+// Hosts that mimic the console's reconnect role (BlueRetro) therefore pair at GAP level and then
+// wait forever for us to connect; the Switch's Change Grip/Order screen and the 8BitDo Retro
+// Receiver initiate from their side. So: stay passive for a grace window
 // (host-initiated still wins), then open the channels ourselves, with bounded retries so
 // a dead host can't pin the radio awake. See docs/switch_pro_protocol.md "Connection direction".
 btstack_timer_source_t s_kick_timer;
@@ -186,7 +184,7 @@ constexpr uint32_t kProCoD = 0x2508;
 uint8_t s_timer = 0;
 // A real Pro Controller powers up in simple input mode (report 0x3F, sent on change) and only
 // streams full 0x30 reports after the host selects that mode with subcommand 0x03. The Switch
-// console and the 8BitDo adapters send 0x03 during their handshake; BlueRetro never does and
+// consoles and the 8BitDo Retro Receiver send 0x03 during their handshake; BlueRetro never does and
 // reads 0x3F reports, dropping a controller that stays silent (~20 s watchdog).
 uint8_t s_input_mode = 0x3F;
 
@@ -567,8 +565,8 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
         // Start passive for both fresh pair and reconnect: hosts that initiate HID themselves (the
         // Switch "Change Grip/Order" screen, the 8BitDo Retro Receiver) get the grace window and
         // connect normally. Hosts that mimic the console's reconnect role and wait for the
-        // controller to open the channels (8BitDo USB Adapter 2, BlueRetro, a console after a power
-        // cycle) get the bounded device-initiated kick. See docs/switch_pro_protocol.md
+        // controller to open the channels (BlueRetro, a console after a power cycle) get the
+        // bounded device-initiated kick. See docs/switch_pro_protocol.md
         // "Connection direction".
         if (s_have_bond) {
             ESP_LOGI(TAG, "reconnect: discoverable, host may initiate or we kick after grace");
@@ -599,8 +597,8 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
         uint8_t st = hci_event_simple_pairing_complete_get_status(packet);
         ESP_LOGI(TAG, "SSP complete: status 0x%02x", st);
         if (st == ERROR_CODE_SUCCESS) {
-            // A freshly paired host may now sit and wait for the controller to open HID (8BitDo
-            // USB Adapter 2, BlueRetro). Nothing else arms the kick on a fresh pair: there is no
+            // A freshly paired host may now sit and wait for the controller to open HID
+            // (BlueRetro). Nothing else arms the kick on a fresh pair: there is no
             // bond at boot to trigger it, and with no HID connection there is no disconnect to
             // trigger it either, so without this the device waits forever.
             hci_event_simple_pairing_complete_get_bd_addr(packet, s_peer);
@@ -718,7 +716,7 @@ void btstack_task(void*) {
     gap_set_class_of_device(kProCoD);
     gap_set_local_name(kDeviceName);
     // Accept a master's sniff and role switch, but never initiate either: a real Pro Controller is
-    // a slave that lets the host drive power management (the 8BitDo NES receiver refuses a
+    // a slave that lets the host drive power management (the 8BitDo Retro Receiver refuses a
     // device-initiated sniff outright, HCI status 0x24). BTstack only ever initiates sniff when
     // asked, so allowing the policy is safe.
     gap_set_default_link_policy_settings(LM_LINK_POLICY_ENABLE_ROLE_SWITCH |
@@ -730,13 +728,9 @@ void btstack_task(void*) {
     gap_set_page_timeout(0x2000);
     gap_ssp_set_io_capability(SSP_IO_CAPABILITY_NO_INPUT_NO_OUTPUT);   // "just works", no PIN
     gap_ssp_set_auto_accept(1);
-    // Secure Connections host support: on, which is also BTstack's default (hci.c sets
-    // secure_connections_enable at init) and therefore what every known-good BTstack Pro emulation
-    // on this controller runs with. It is tempting to turn this off on the theory that a real Pro
-    // Controller is a Bluetooth 3.0 device that cannot do SC at all, so claiming it is unfaithful -
-    // but that was tried against the Switch 2 and changed nothing, and it deviates from the
-    // validated configuration for no measured gain. The call is spelled out rather than left
-    // implicit so the next person does not have to re-derive the default.
+    // Secure Connections host support: on. Also BTstack's default; spelled out because it is easy
+    // to assume a Pro Controller, being a Bluetooth 3.0 device, must advertise it off. No host
+    // cares either way.
     gap_secure_connections_enable(true);
 
     l2cap_init();
@@ -771,16 +765,13 @@ void btstack_task(void*) {
                                 DEVICE_ID_VENDOR_ID_SOURCE_USB, kVendorId, kProductId, kVersion);
     sdp_register_service(did_sdp_buf);
 
-    // A real Pro Controller is a Bluetooth 3.0 device: it puts no security requirement on its HID
-    // channels at all. BTstack defaults to LEVEL_2 (authenticated + encrypted), which makes us
-    // strictly more demanding than the thing we are impersonating - so hosts that a real Pro is
-    // perfectly happy with get refused by us. Observed against the 8BitDo Retro Receiver: the link
-    // settles below LEVEL_2 and our own outgoing HID connect dies in
-    // l2cap_outgoing_channel_with_insufficient_security with 0x66 REFUSED_SECURITY, on a loop. The
-    // Switch 1 and 2 authenticate and encrypt properly so they never trip it; the receivers do not.
-    // The Bluedroid build patched the same two PSMs to level 0 for the same reason.
-    // Must precede hid_device_init(), which snapshots gap_get_security_level() when it registers
-    // both PSMs - calling it afterwards has no effect.
+    // A real Pro Controller puts no security requirement on its HID channels, so neither can we:
+    // BTstack's LEVEL_2 default (authenticated + encrypted) makes us stricter than the device we
+    // impersonate, and receivers whose links settle below it - BlueRetro, the 8BitDo Retro Receiver -
+    // then have our own outgoing HID connect refused by our own stack (L2CAP 0x66, in
+    // l2cap_outgoing_channel_with_insufficient_security). The consoles authenticate and encrypt
+    // properly, so they reach LEVEL_2 and hide this entirely.
+    // Must precede hid_device_init(), which snapshots the level when it registers both PSMs.
     gap_set_security_level(LEVEL_0);
 
     hid_device_init(false, sizeof(kProReportMap), kProReportMap);
@@ -794,7 +785,7 @@ void btstack_task(void*) {
     s_hci_event_cb.callback = &packet_handler;
     hci_add_event_handler(&s_hci_event_cb);
 
-    ESP_LOGI(TAG, "init done, pair from the Switch 'Change Grip/Order' screen or an 8BitDo receiver");
+    ESP_LOGI(TAG, "init done, pair from the Switch 'Change Grip/Order' screen or a receiver");
 
     s_run_loop_ready.store(true);      // the app's input nudges are safe to queue from here on
     hci_power_control(HCI_POWER_ON);   // opens the transport: controller init + enable, Classic-only

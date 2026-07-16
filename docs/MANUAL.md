@@ -17,9 +17,8 @@ You can play while charging.
 3. Pair:
    - **Nintendo Switch and Switch 2:** open Controllers, then Change Grip/Order. The stick appears
      as a Pro Controller. The blue LED blinks while pairing and is solid once connected.
-   - **8BitDo Retro Receiver / USB Adapter 2:** put the receiver in pairing mode and wake the
-     stick. Pairing takes a few seconds (the stick waits for the host briefly, then completes
-     the connection itself).
+   - **8BitDo Retro Receiver:** put the receiver in pairing mode and wake the stick. Pairing takes
+     a few seconds (the stick waits for the host briefly, then completes the connection itself).
    - **BlueRetro (BT Classic):** press BlueRetro's pair button and wake the stick. Expect a few
      connect/disconnect cycles for the first ~20 seconds while BlueRetro's pairing mode settles;
      the link then holds. (BlueRetro also works over the BLE transport.)
@@ -27,16 +26,13 @@ You can play while charging.
      device's Bluetooth menu.
 4. Play. The stick reconnects to the last host automatically on wake.
 
-**Nintendo Switch 2:** pairs directly from Change Grip/Order, same as a Switch 1 — no adapter
-needed. The Switch 2 still speaks the original Pro Controller's Bluetooth protocol, and the stick
-emulates it. (The signed-certificate requirement people run into applies to the *new* Joy-Con 2 and
-Pro Controller 2, which use a different, BLE-based protocol. It does not gate the Pro Controller
-path the Switch 2 keeps for backward compatibility.)
+**Nintendo Switch 2:** pairs directly from Change Grip/Order, exactly like a Switch 1. No adapter
+needed.
 
-If the Switch 2 will not pair with *anything* — including controllers that worked yesterday — power
-it off completely (hold Power, then Power Options → Turn Off) and try again. Sleep is not enough. A
+**If a Switch 2 won't pair with anything**, including controllers that worked yesterday, power it
+off completely (hold Power, then Power Options, Turn Off) and try again. Sleep is not enough. A
 Switch 2 in this state connects to a controller and then drops it a fraction of a second later,
-forever.
+every time.
 
 ## Gestures
 
