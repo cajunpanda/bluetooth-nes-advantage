@@ -270,8 +270,8 @@ static int transport_open(void){
 
 #if defined(ENABLE_CLASSIC) && !defined(ENABLE_BLE) && defined(CONFIG_BTDM_CTRL_MODEM_SLEEP)
     // btna: modem sleep is compiled in for the BLE transport's power savings, but Classic runs
-    // with it disabled - it must not touch the fragile Switch handshake, and the QoS-pinned
-    // active ACL keeps RX on regardless (same choice as the previous Bluedroid transport).
+    // with it disabled - it must not touch the fragile Switch handshake (same choice as the
+    // previous Bluedroid transport).
     esp_bt_sleep_disable();
 #endif
 

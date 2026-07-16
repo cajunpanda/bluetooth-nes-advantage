@@ -36,9 +36,8 @@ CONFIG_BT_BLE_SMP_ENABLE=y
 # BT modem sleep (ORIG mode, main-XTAL low-power clock) is compiled in for the BLE transport:
 # combined with slave latency it lets the controller power the radio down between connection
 # events (BLE connected ~114 -> ~61 mA at 240 MHz, bench 2026-07-14; see bt_ble.cpp). The Classic
-# transport calls esp_bt_sleep_disable() in its init, so BR/EDR behaves exactly like a build
-# without modem sleep: the handshake never sees it, and it saves nothing on a connected Classic
-# link anyway (the QoS-pinned active ACL keeps RX on regardless).
+# transport disables it when it opens the controller (components/btstack port), so BR/EDR behaves
+# exactly like a build without modem sleep and the handshake never sees it.
 CONFIG_PM_ENABLE=n
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=n
 CONFIG_BTDM_CTRL_MODEM_SLEEP=y

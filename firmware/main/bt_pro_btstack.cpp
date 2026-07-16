@@ -100,7 +100,6 @@ constexpr uint8_t  kKickMaxAttempts = 4;
 // and retrying - a 3 s grace loses that race and the two sides then collide (orphan L2CAP channel,
 // subcommand replies lost, link dropped after ~30-60 s, repeat).
 constexpr uint32_t kKickGraceMs = 1500;
-constexpr uint32_t kKickRetryMs = 5000;
 
 // --- Profiles: which Pro buttons the NES face buttons produce ----------------------------------
 // Select/Start always map to Minus/Plus. Directions are handled by the directional mode, not here.
@@ -235,10 +234,17 @@ void fill_prefix(uint8_t* b, const ProState* st, const uint8_t btn[3]) {
 
 // --- Send path ---------------------------------------------------------------------------------
 // BTstack sends when the interrupt channel is ready: request a can-send-now event, then build the
-// frame in the callback. Subcommand replies take priority over the input stream (the console
-// serializes its handshake and waits for each 0x21); one pending reply is enough.
-uint8_t s_reply[48];
-bool    s_reply_pending = false;
+// frame in the callback. Subcommand replies take priority over the input stream.
+//
+// Replies are queued rather than held in a single slot: the VHCI transport hands the run loop
+// every packet that arrived in one radio window before any can-send-now runs, so two output
+// reports can be dispatched back to back, and a reply that could not ship inline (controller ACL
+// buffers momentarily full) would be overwritten and lost - most likely during the console's
+// back-to-back SPI reads, i.e. mid-handshake. Four slots is far more than the handshake needs.
+constexpr uint8_t kReplyQueueLen = 4;
+uint8_t s_reply[kReplyQueueLen][48];
+uint8_t s_reply_head = 0;      // next reply to send
+uint8_t s_reply_count = 0;     // queued replies
 bool    s_can_send_requested = false;
 
 void request_send() {
@@ -258,16 +264,23 @@ void send_report(uint8_t report_id, const uint8_t* payload, uint16_t len) {
 }
 
 void queue_reply(uint8_t ack, uint8_t subcmd, const uint8_t* payload, size_t plen) {
-    memset(s_reply, 0, sizeof(s_reply));
-    const uint8_t no_btn[3] = {0, 0, 0};
-    fill_prefix(s_reply, nullptr, no_btn);
-    s_reply[12] = ack;
-    s_reply[13] = subcmd;
-    if (payload && plen) {
-        if (plen > sizeof(s_reply) - 14) plen = sizeof(s_reply) - 14;
-        memcpy(s_reply + 14, payload, plen);
+    if (s_reply_count >= kReplyQueueLen) {
+        // Never seen in practice; loud because a dropped reply stalls the handshake and would
+        // otherwise look like an unexplained pairing failure.
+        ESP_LOGW(TAG, "reply queue full, dropping reply to subcmd 0x%02x", subcmd);
+        return;
     }
-    s_reply_pending = true;
+    uint8_t* b = s_reply[(s_reply_head + s_reply_count) % kReplyQueueLen];
+    memset(b, 0, 48);
+    const uint8_t no_btn[3] = {0, 0, 0};
+    fill_prefix(b, nullptr, no_btn);
+    b[12] = ack;
+    b[13] = subcmd;
+    if (payload && plen) {
+        if (plen > 48 - 14) plen = 48 - 14;
+        memcpy(b + 14, payload, plen);
+    }
+    s_reply_count++;
     request_send();
 }
 
@@ -360,7 +373,9 @@ constexpr uint32_t k3fKeepaliveMs  = 100;
 
 void stream_timer_handler(btstack_timer_source_t* ts) {
     if (s_hid_cid != 0) {
-        if (!s_streaming && btstack_run_loop_get_time_ms() >= s_settle_deadline_ms) {
+        // btstack_time_delta, not >=: the ms clock is a uint32 that wraps, and a raw compare would
+        // skip the settle entirely on the wrap.
+        if (!s_streaming && btstack_time_delta(btstack_run_loop_get_time_ms(), s_settle_deadline_ms) >= 0) {
             s_streaming = true;
             ESP_LOGI(TAG, "link settled -> streaming (mode 0x%02x)", s_input_mode);
         }
@@ -389,6 +404,13 @@ void start_stream() {
     s_settle_deadline_ms = btstack_run_loop_get_time_ms() + kSettleMs;
     s_last_3f_ms = 0;
     memset(s_prev_3f, 0xFF, sizeof(s_prev_3f));
+    // Start every connection with a clean send path. s_can_send_requested is a latch cleared only
+    // by a can-send-now event, so a request left outstanding when the last link died (e.g. the
+    // interrupt channel closed on its own, which does not raise CONNECTION_CLOSED) would block
+    // every request_send() on this connection and stream nothing, silently.
+    s_can_send_requested = false;
+    s_reply_head = 0;
+    s_reply_count = 0;
     btstack_run_loop_remove_timer(&s_stream_timer);
     btstack_run_loop_set_timer_handler(&s_stream_timer, stream_timer_handler);
     btstack_run_loop_set_timer(&s_stream_timer, kStreamTickMs);
@@ -399,9 +421,11 @@ void handle_can_send_now() {
     s_can_send_requested = false;
     if (s_hid_cid == 0) return;
 
-    if (s_reply_pending) {
-        s_reply_pending = false;
-        send_report(0x21, s_reply, sizeof(s_reply));
+    if (s_reply_count > 0) {
+        send_report(0x21, s_reply[s_reply_head], 48);
+        s_reply_head = (s_reply_head + 1) % kReplyQueueLen;
+        s_reply_count--;
+        if (s_reply_count > 0) request_send();   // drain the rest, one per can-send-now
         return;
     }
     if (!s_streaming) return;
@@ -446,8 +470,13 @@ void kick_timer_handler(btstack_timer_source_t* ts) {
     uint16_t cid = 0;
     uint8_t status = hid_device_connect(s_peer, &cid);
     if (status != ERROR_CODE_SUCCESS) ESP_LOGW(TAG, "hid_device_connect: 0x%02x", status);
-    btstack_run_loop_set_timer(ts, kKickRetryMs);     // retry unless CONNECTION_OPENED stops us
-    btstack_run_loop_add_timer(ts);
+    // No blind retry timer here: the retry is driven by HID_SUBEVENT_CONNECTION_OPENED reporting
+    // failure, which is the only signal that the page actually finished. Re-issuing on a timer
+    // while the previous page is still running would stack connect attempts - hid_device_connect()
+    // has no in-progress guard, so each one re-keys the singleton and leaves another L2CAP channel
+    // in the list. When the page finally completes they ALL open, and every channel but the last
+    // becomes an orphan the peer reaps ~30 s later, taking the session with it: exactly the
+    // collision described above.
 }
 
 void arm_hid_kick(bool reset_attempts) {
@@ -492,6 +521,7 @@ void load_bond() {
     ESP_LOGI(TAG, "stored BT bonds at boot: %d", n);
 }
 
+// Output reports on the interrupt channel (how the console sends subcommands).
 void on_report_data(uint16_t cid, hid_report_type_t type, uint16_t report_id,
                     int report_size, uint8_t* report) {
     (void)cid;
@@ -500,6 +530,22 @@ void on_report_data(uint16_t cid, hid_report_type_t type, uint16_t report_id,
         handle_subcommand(report, report_size);
     } else if (report_id != 0x10) {      // 0x10 is rumble-only; we have no motor
         ESP_LOGW(TAG, "unexpected OUTPUT id=0x%02x len=%d", report_id, report_size);
+    }
+}
+
+// The same subcommands, but sent as SET_REPORT on the control channel. Without this, BTstack's
+// default handler silently discards them AND answers HANDSHAKE_SUCCESSFUL, so a host that uses
+// this path would be told its subcommand landed and then wait forever for a 0x21 that never comes.
+// Note the framing asymmetry against on_report_data: SET_REPORT does NOT strip the report id
+// (hid_device.c passes &packet[1], id included), so skip it by hand.
+void on_set_report(uint16_t cid, hid_report_type_t type, int report_size, uint8_t* report) {
+    (void)cid;
+    if (type != HID_REPORT_TYPE_OUTPUT || report_size < 1) return;
+    uint8_t report_id = report[0];
+    if (report_id == 0x01) {
+        handle_subcommand(report + 1, report_size - 1);
+    } else if (report_id != 0x10) {
+        ESP_LOGW(TAG, "unexpected SET_REPORT id=0x%02x len=%d", report_id, report_size);
     }
 }
 
@@ -536,22 +582,48 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
         ESP_LOGI(TAG, "SSP user confirmation (auto-accepted)");
         break;
 
-    case HCI_EVENT_SIMPLE_PAIRING_COMPLETE:
-        ESP_LOGI(TAG, "SSP complete: status 0x%02x",
-                 hci_event_simple_pairing_complete_get_status(packet));
+    case HCI_EVENT_CONNECTION_COMPLETE:
+        // The authoritative peer for the kick, captured before any HID connection. A reconnect
+        // resumes on a stored link key with no fresh pairing, so this is the only event that
+        // reports the real host on both fresh and resumed links; with two bonds stored, relying on
+        // the first bond instead would page the wrong host.
+        if (hci_event_connection_complete_get_status(packet) == ERROR_CODE_SUCCESS) {
+            hci_event_connection_complete_get_bd_addr(packet, s_peer);
+            ESP_LOGI(TAG, "ACL up: %s", bd_addr_to_str(s_peer));
+        }
         break;
+
+    case HCI_EVENT_SIMPLE_PAIRING_COMPLETE: {
+        uint8_t st = hci_event_simple_pairing_complete_get_status(packet);
+        ESP_LOGI(TAG, "SSP complete: status 0x%02x", st);
+        if (st == ERROR_CODE_SUCCESS) {
+            // A freshly paired host may now sit and wait for the controller to open HID (8BitDo
+            // USB Adapter 2, BlueRetro). Nothing else arms the kick on a fresh pair: there is no
+            // bond at boot to trigger it, and with no HID connection there is no disconnect to
+            // trigger it either, so without this the device waits forever.
+            hci_event_simple_pairing_complete_get_bd_addr(packet, s_peer);
+            arm_hid_kick(true);
+        }
+        break;
+    }
 
     case HCI_EVENT_HID_META:
         switch (hci_event_hid_meta_get_subevent_code(packet)) {
         case HID_SUBEVENT_CONNECTION_OPENED: {
             uint8_t status = hid_subevent_connection_opened_get_status(packet);
             if (status != ERROR_CODE_SUCCESS) {
-                // A failed connect leaves us idle; re-assert discoverable so the host can page us
-                // again (the kick's own retry timer keeps running if armed).
                 ESP_LOGW(TAG, "HID connect failed, status 0x%02x", status);
-                s_hid_cid = 0;
-                s_link = bt::LINK_ADVERTISING;
-                enter_discoverable();
+                // Only tear down if we have no link. A kick that loses the race to the host's own
+                // incoming connection reports its failure here *after* that connection opened;
+                // acting on it would drop a working link and re-advertise on top of it, with no
+                // disconnect event left to recover from.
+                if (s_hid_cid == 0) {
+                    s_link = bt::LINK_ADVERTISING;
+                    enter_discoverable();   // let the host page us again
+                    // This is the page's completion signal, so it is the only safe moment to retry
+                    // (see kick_timer_handler). arm_hid_kick keeps the attempt count.
+                    arm_hid_kick(false);
+                }
                 break;
             }
             s_hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
@@ -571,7 +643,8 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
             ESP_LOGW(TAG, "HID disconnected -> re-advertise");
             s_hid_cid = 0;
             s_streaming = false;
-            s_reply_pending = false;
+            s_reply_count = 0;
+            s_reply_head = 0;
             s_can_send_requested = false;
             btstack_run_loop_remove_timer(&s_stream_timer);
             s_link = bt::LINK_ADVERTISING;
@@ -649,6 +722,10 @@ void btstack_task(void*) {
     gap_set_default_link_policy_settings(LM_LINK_POLICY_ENABLE_ROLE_SWITCH |
                                          LM_LINK_POLICY_ENABLE_SNIFF_MODE);
     gap_set_allow_role_switch(true);
+    // Page timeout ~5.1 s instead of BTstack's ~15.4 s default: the kick pages a host that may
+    // simply be gone (powered-off console), and a 15 s page pins the radio awake and stretches the
+    // 4-attempt kick sequence past a minute.
+    gap_set_page_timeout(0x2000);
     gap_ssp_set_io_capability(SSP_IO_CAPABILITY_NO_INPUT_NO_OUTPUT);   // "just works", no PIN
     gap_ssp_set_auto_accept(1);
     // Secure Connections host support: the Switch 2 reads our LMP feature pages right after the
@@ -695,6 +772,7 @@ void btstack_task(void*) {
     hid_device_accept_truncated_hid_reports(true);
     hid_device_register_packet_handler(&packet_handler);
     hid_device_register_report_data_callback(&on_report_data);
+    hid_device_register_set_report_callback(&on_set_report);
 
     s_hci_event_cb.callback = &packet_handler;
     hci_add_event_handler(&s_hci_event_cb);
