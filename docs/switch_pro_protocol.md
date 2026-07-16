@@ -1,7 +1,8 @@
 # Switch Pro Controller: BT Classic emulation reference
 
 Protocol reference for the Switch Pro Controller emulation in
-[`../firmware/main/bt_pro.cpp`](../firmware/main/bt_pro.cpp). It covers the identity, input and
+[`../firmware/main/bt_pro_btstack.cpp`](../firmware/main/bt_pro_btstack.cpp) (BTstack; see
+[FIRMWARE.md](FIRMWARE.md) "Two Bluetooth host stacks"). It covers the identity, input and
 output reports, the handshake, and the two link-layer behaviors the emulation depends on.
 
 ## Identification
@@ -10,7 +11,7 @@ The Switch does not validate the SDP HID report descriptor. It identifies the co
 VID/PID `0x057E`/`0x2009`, device name `"Pro Controller"`, and Class of Device, then negotiates
 everything over the `0x01` and `0x21` subcommand handshake on the L2CAP interrupt channel. Get the
 identity right, answer the subcommands, and stream `0x30`. The descriptor still declares report IDs
-0x30/0x21/0x01/0x10 so the ESP-IDF `esp_hidd` layer can route reports by ID.
+0x30/0x21/0x01/0x10 so the local HID layer can route reports by ID.
 
 | Field | Value |
 |---|---|
@@ -22,10 +23,36 @@ identity right, answer the subcommands, and stream `0x30`. The descriptor still 
 
 Publish VID/PID via the SDP DI record, set the name and CoD, and be Connectable and Discoverable.
 
+### The CoD is a hard discovery gate on the Switch 2 (and the ordering matters)
+
+`0x002508` is not cosmetic. On the **Switch 2**, the Change Grip/Order inquiry pages a device **only
+if its CoD is exactly a real Pro's `0x002508`**, which includes the *Limited Discoverable* service
+class bit `0x2000`. Get this wrong and the console never even pages you; there is nothing to debug
+further up the stack. Proven by A/B against the console: a host advertising `0x002508` with an
+otherwise sloppy fingerprint (generic Intel MAC, desktop-junk EIR) was paged within ~2 s, while the
+board advertising `0x000508` with a byte-perfect Pro name, EIR and SDP was never paged at all. The
+Switch 1 accepts either. Neither console reads SDP before pairing, so SDP contents are not part of
+this gate.
+
+Two ordering traps, both about the *controller*, not the host stack:
+
+- **Set the CoD before inquiry scan is enabled.** The ESP32 controller latches the CoD into its
+  inquiry-response state at scan-enable and ignores later `Write_Class_of_Device`: the command
+  returns success and the radio keeps answering the old value. Under BTstack, `gap_set_class_of_device()`
+  before `hci_power_control(HCI_POWER_ON)` lands in the init sequence, which is correct by
+  construction.
+- **Do not try to reach it via GAP "limited discoverable" mode.** The ESP32 then answers only the
+  *limited* inquiry code (LIAC), and the console inquires with the *general* one (GIAC), so you
+  become invisible. The bit has to come from the CoD value itself. (Bluedroid actively fought this:
+  `BTM_SetDiscoverability(GENERAL)` force-*clears* the limited bit on every scan-mode change, which
+  is why the Bluedroid build needed a source patch to make that strip additive-only.)
+
 ## Input report 0x30 (standard full report)
 
-Byte 0 is the report ID when sent raw. With `esp_hidd_dev_input_set(dev, 0, 0x30, body, len)` the
-report ID is passed separately and `body` is bytes 1 to N below (no leading `0x30`, no `0xA1`).
+Byte 0 is the report ID when sent raw. On the wire an interrupt-channel input report is
+`A1 30 <body>`: the HID DATA|INPUT header `0xA1`, the report ID, then bytes 1 to N below.
+BTstack's `hid_device_send_interrupt_message()` sends the buffer verbatim, so the caller supplies
+that whole frame itself (`bt_pro_btstack.cpp send_report()`).
 
 | Byte | Meaning |
 |---|---|
@@ -77,15 +104,19 @@ reply payload (up to 35). The canned prefix is `21 <pkt> 8E 84 00 12 01 18 80 01
 ## Output reports (host to device)
 
 - `0x01`: rumble plus subcommand. `[1]` packet number, `[2..9]` rumble, `[10]` subcommand id,
-  `[11..]` args (SPI sub-address at `[11]`/`[12]`). All handshake subcommands arrive here. With
-  `esp_hidd` the OUTPUT event strips the report-id byte, so the subcommand id is at `data[9]` and
-  the SPI address at `data[10]`/`data[11]`.
+  `[11..]` args (SPI sub-address at `[11]`/`[12]`). All handshake subcommands arrive here. Both
+  BTstack's report-data callback and Bluedroid's OUTPUT event hand over the payload with the
+  report-id byte already stripped, so the subcommand id is at `data[9]` and the SPI address at
+  `data[10]`/`data[11]`. **BTstack gotcha:** it drops output reports whose length does not match
+  the descriptor (`hid_report_size_valid()`), and the console's `0x01` frames are shorter than the
+  48 bytes we declare - `hid_device_accept_truncated_hid_reports(true)` is required or every
+  subcommand is silently discarded.
 - `0x10`: rumble only; ignore.
 - `0x80`: UART/handshake, USB-only; BT generally skips it. Ignore, or ack `0x81 <cmd>`.
 
 ## Canned 0x21 replies (byte 0 = report id 0x21)
 
-Strip byte 0 and pass `report_id=0x21` to `esp_hidd_dev_input_set`. Prefix
+Sent as `A1 21 <body>` on the interrupt channel. Prefix
 `21 <pkt> 8E 84 00 12 01 18 80 01 18 80 80`, then `<ack> <subcmd> <payload>`.
 
 - `0x02` Device info: ack `0x82`, subcmd `0x02`, firmware `03 48`, controller type `0x03` (Pro),
@@ -135,13 +166,15 @@ spec does the opposite: it slave-initiates sniff about 5 s after connect, on idl
 receiver refuses it (HCI status `0x24`, "LMP PDU not allowed") and the retry storm tears the link
 down and re-pairs repeatedly, so the receiver never holds a stable connection.
 
-Fix: `tools/patch_bluedroid_sniff.py`, a PlatformIO pre-build patch. In the HID-device (HD) entry of
-`bta_dm_pm_spec[]` (`components/.../bta/dm/bta_dm_cfg.c`), set all three sniff initiations (conn-open,
-idle, busy) to `BTA_DM_PM_NO_ACTION`, leaving the allow-mask (`BTA_DM_PM_SNIFF | BTA_DM_PM_PARK`)
-intact so the device still accepts master sniff. The spec is a `const` table with no runtime API or
-Kconfig, so it must be patched at build time. With this, 8BitDo holds a stable connection and the
-Switch is unaffected. `esp_bt_gap_set_qos()` alone does not fix it; it only momentarily wakes the
-link before BTA re-sniffs.
+On BTstack this is free: it never initiates sniff unless the application asks. We allow the policy
+(`gap_set_default_link_policy_settings(... | LM_LINK_POLICY_ENABLE_SNIFF_MODE)`) so a master's
+sniff is still accepted, and set the SDP record's SSR fields to `0xFFFF` so we request no sniff
+subrating either.
+
+(Historical: under Bluedroid this needed a build-time patch, `tools/patch_bluedroid_sniff.py`, to
+null all three sniff initiations in the `const` `bta_dm_pm_spec[]` HD entry - there was no runtime
+API or Kconfig for it. `esp_bt_gap_set_qos()` alone did not fix it; it only momentarily woke the
+link before BTA re-sniffed. See git history before the BTstack switch.)
 
 ## Connection direction: passive first, then a bounded device-initiated "kick"
 
@@ -150,76 +183,85 @@ Hosts differ in who they expect to open them:
 
 - The Switch Change Grip/Order screen and the 8BitDo Retro Receiver open both channels themselves,
   promptly after auth.
-- The 8BitDo USB Adapter 2 and BlueRetro mimic the console's *reconnect* role: they expect the
-  controller to behave like a real Pro (which advertises `HIDReconnectInitiate` and opens the
-  channels itself). If the device stays passive they wait forever and give up after ~30 s.
+- BlueRetro mimics the console's *reconnect* role: it expects the controller to behave like a real
+  Pro (which advertises `HIDReconnectInitiate` and opens the channels itself). If the device stays
+  passive it waits forever and gives up after ~30 s.
 
-So `bt_pro.cpp` starts passive (host-initiated connects work exactly as before) and arms a one-shot
-"kick" timer on GAP auth complete, on a bonded boot, and on disconnect: if the host has not opened
-HID within a 3 s grace window, the device calls `esp_bt_hid_device_connect()` itself, with bounded
-retries (4 x 5 s) before falling back to passive so a dead host cannot pin the radio awake. A
-successful CONNECT cancels the kick. The grace window also avoids the classic initiator-state trap:
-device-initiating *while* a host opens its own connection strands the host's incoming channels on
-generic L2CAP (`HID_ERR_CONN_IN_PROCESS`), so the kick only fires after the host has stayed quiet.
+So `bt_pro_btstack.cpp` starts passive (host-initiated connects just work: BTstack's `hid_device`
+auto-accepts incoming CTRL/INTR) and arms a one-shot "kick" timer on pairing complete, on a bonded
+boot, and on disconnect: if the host has not opened HID within a 1.5 s grace window, the device
+calls `hid_device_connect()` itself, with bounded retries (4 x 5 s) before falling back to passive
+so a dead host cannot pin the radio awake. A successful `HID_SUBEVENT_CONNECTION_OPENED` cancels
+the kick. The grace window also avoids racing a host that is opening its own connection.
+
+Grace-window sizing: it must be long enough that hosts which open both channels themselves (Switch
+console, 8BitDo Retro Receiver - both well under 1 s) always win, but short enough to beat
+BlueRetro, which opens CTRL and waits only ~2 s for the controller's INTR before tearing down and
+retrying. A 3 s grace loses that race and the two sides then collide (orphan L2CAP channel,
+subcommand replies lost, link dropped after ~30-60 s, repeat).
 
 BlueRetro is a third pattern: it does open both channels itself, but only ~3 s after auth (it runs
 an SDP query first), and it opens CTRL within milliseconds of the SSP link key - before encryption
-has settled. The kick therefore must NOT full-initiate while the host's ACL is already up (the
-host is mid-flow and will open HID itself; racing it strands orphan channels); full-initiate is
-reserved for paging a host whose ACL is down.
-
-Five Bluedroid behaviors break these flows against the 8BitDo USB Adapter 2 and BlueRetro and are
-fixed at build time by `tools/patch_bluedroid_hid_intr.py` (companion to the sniff patch below):
-
-1. **MITM link-key "upgrade" wedges the ESP32 controller.** The HID service registers with
-   `AUTHENTICATE|ENCRYPT`; in SSP mode btm silently adds a MITM requirement. We pair Just Works
-   (unauthenticated link key), and when a host advertises IO caps that make an authenticated key
-   theoretically possible (the Adapter 2 does; a console reports NoInputNoOutput and does not),
-   `btm_sec_check_upgrade` deletes the fresh key and re-authenticates the already-encrypted link.
-   The ESP32 controller's LMP encryption pause/resume does not survive this: ACL TX freezes (no
-   Number-of-Completed-Packets, no Encryption Key Refresh Complete; occasionally an
-   `ASSERT_WARN lc_task.c 1556` controller crash), the host never sees our ConnectRsp/ConfigReq,
-   and both sides deadlock until their 30 s timers fire. Fix: register the HID service with
-   `BTA_SEC_NONE` (real Pros use Just-Works keys with no MITM; SSP still authenticates and encrypts
-   the link) and accept the incoming CTRL channel directly instead of via `btm_sec_mx_access_request`.
-2. **Half-open connections are never completed.** Stock Bluedroid only self-originates INTR when it
-   originated CTRL; for a host that opens CTRL and then waits for the controller to open INTR both
-   sides deadlock. Fix: `hidd_conn_initiate()` (reached via the kick) now completes a half-open
-   connection - re-sends the CTRL ConfigReq if config never finished, then originates INTR - and
-   refuses to full-initiate while the host's ACL is up (see BlueRetro note above).
-3. **The btm channel-security gate re-litigates security per HID L2CAP connect.** A CTRL connect
-   racing SSP pairing gets queued behind "pairing in progress", triggers a redundant local
-   re-authentication, and times out refused (ConnRsp result 2) without the HID layer ever seeing
-   it. Fix: the HID PSMs are now "mode 4 level 0" services (exempt from channel gating, like SDP);
-   SSP still authenticates and encrypts the ACL itself.
-4. **Abandoned originate attempts leave zombie channels.** If our outgoing ConnectReq completes
-   after the host's own connection superseded it, stock code logs "unknown cid" and ignores the
-   open channel; the peer reaps it 16-30 s later and tears the whole session down with it. Fix:
-   close unknown-but-open channels immediately.
-5. **MTU**: `HID_DEV_MTU_SIZE` raised from 64 to 640 to match a real Pro Controller's L2CAP config.
+has settled.
 
 ## Input report modes: 0x3F by default, 0x30 on request
 
 A real Pro Controller powers up in simple input mode - report `0x3F` (2 button bytes, hat, four
 16-bit axes), sent on state change - and only streams full `0x30` reports after the host selects
-that mode with subcommand `0x03`. The Switch console and the 8BitDo adapters send `0x03 0x30`
+that mode with subcommand `0x03`. The Switch consoles and the 8BitDo Retro Receiver send `0x03 0x30`
 during their handshake; BlueRetro never sends `0x03` and reads `0x3F` reports. The firmware
 therefore starts every connection in `0x3F` mode (sent on change plus a ~100 ms keepalive) and
 switches to the continuous ~66 Hz `0x30` stream when subcommand `0x03` asks for it.
 
-## ESP-IDF / Bluedroid notes
+## ESP32 / BTstack notes
 
-- Send all input reports on the interrupt channel. Use
-  `esp_hidd_dev_input_set(dev, map_index, report_id, body, len)` with `report_id` `0x30`/`0x21`; do
-  not also prepend `0xA1` or the report-id byte, the stack frames it.
+- Send all input reports on the interrupt channel, as a self-framed `A1 <report_id> <body>` buffer
+  passed to `hid_device_send_interrupt_message()`. Sending is gated: call
+  `hid_device_request_can_send_now_event()` and build the frame in the
+  `HID_SUBEVENT_CAN_SEND_NOW` handler.
+- `hid_device_accept_truncated_hid_reports(true)`, or the console's short `0x01` output reports are
+  silently dropped and no subcommand ever arrives.
 - Classic-only: release BLE memory (`esp_bt_controller_mem_release(ESP_BT_MODE_BLE)`) and enable
-  `ESP_BT_MODE_CLASSIC_BT` to free RAM and avoid coexistence issues.
-- Stamp the device's real BD_ADDR into the 0x02 device-info reply MAC field.
+  the controller in `ESP_BT_MODE_CLASSIC_BT` to free RAM and avoid coexistence issues.
+- BTstack is single-threaded: call its API only from the run loop, and bring the stack up **on the
+  run-loop task** - `btstack_run_loop_init()` records its caller as the task to notify for all
+  cross-thread work, including the VHCI transport's own packet delivery. Initialize it from the
+  wrong task and the stack silently never reaches `HCI_STATE_WORKING`. Hand work in from other
+  tasks with `btstack_run_loop_execute_on_main_thread()`.
+- Stamp the device's real BD_ADDR (`gap_local_bd_addr()`) into the 0x02 device-info reply MAC field.
 - Do not go silent between handshake packets; answer subcommands within a few ms.
+- Do **not** define `ENABLE_HCI_CONTROLLER_TO_HOST_FLOW_CONTROL`. This controller does not implement
+  it (`Read_Local_Supported_Commands` octet 10 = `0xFC`: `Set_Controller_To_Host_Flow_Control` and
+  `Host_Buffer_Size` both clear) and refuses `Host_Buffer_Size` on the wire with status `0x11` at any
+  parameters, while stubbing the flow-control enable out as success. BTstack believes the lie and
+  then answers every inbound ACL packet with a `Host_Number_Of_Completed_Packets` nobody asked for,
+  which preempts every other command in `hci_run()`. The VHCI transport does its own backpressure.
+- Debugging: `hci_dump_init(hci_dump_embedded_stdout_get_instance())` puts a full HCI trace on the
+  serial console (`BTNA_HCI_DUMP` in `bt_pro_btstack.cpp`, off by default). This is the only way to
+  see a handshake; pairing failures happen entirely below the app log.
+
+## When a Switch 2 refuses to pair with anything
+
+A Switch 2 can wedge into a state where it **refuses SSP with every device**, including commercial
+controllers: it pages you, completes the ACL, sets your link supervision timeout, then detaches with
+**Authentication Failure (0x05) ~50-90 ms in, having never sent a single SSP packet**: no IO
+Capability Request, no User Confirmation, no Link Key Notification.
+
+**Power-cycle the console** (hold Power → Power Options → Turn Off; sleep is not enough).
+
+This signature is indistinguishable from a firmware bug and will happily absorb days. Two things
+that fake it, to rule out before believing your own code is at fault:
+
+- Reproduce with a device you did not write. If a stock controller is rejected too, the console is
+  the variable.
+- On a BlueZ host, check an auto-accept SSP agent is registered. bluetoothd's default agent rejects
+  the Just-Works confirmation and produces the identical 0x05.
 
 ## Sources
 
 - dekuNukem/Nintendo_Switch_Reverse_Engineering: `bluetooth_hid_notes.md`,
   `bluetooth_hid_subcommands_notes.md`, `spi_flash_notes.md`
 - NathanReeves/BlueCubeMod: `Firmware/BlueCubeModv2/main/main.c`
-- ESP-IDF Bluetooth HID Device API (`esp_hidd`)
+- BTstack (`bluekitchen/btstack`): `src/classic/hid_device.h`, `example/hid_keyboard_demo.c`
+- Other BTstack-based Pro Controller emulators: `DavidPagels/retro-pico-switch`,
+  `Wilstride/PicoSwitchController` (both Pico W; same GAP/SDP parameter choices)

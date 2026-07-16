@@ -5,22 +5,24 @@
 # --- Target ---
 CONFIG_IDF_TARGET="esp32"
 
-# --- Bluetooth: dual-mode ---
+# --- Bluetooth: dual-mode controller, two host stacks ---
 # The controller is compiled BTDM (both BR/EDR and BLE) so the firmware can bring up either radio
-# at boot from the NVS transport setting (Classic Switch Pro in bt_pro or BLE gamepad in bt_ble),
-# one radio at a time: the unused half's controller RAM is released at runtime in each transport's
-# init().
+# at boot from the NVS transport setting (Classic Switch Pro in bt_pro_btstack or BLE gamepad in
+# bt_ble), one radio at a time: the unused half's controller RAM is released at runtime in each
+# transport's init().
+#
+# The two radios use different host stacks, one per boot, both over the controller's VHCI:
+#   * Classic (Switch Pro)  -> BTstack, vendored in components/btstack (see its README for why).
+#   * BLE gameplay + config/OTA boot mode -> Bluedroid, below.
+# Bluedroid Classic is therefore OFF: nothing uses it, it costs flash, and its sdp_init symbol
+# collides with BTstack's. Turning it off also drops BT_HID*/BT_SDP_COMMON/BT_SSP, which are all
+# Classic-only.
 CONFIG_BT_ENABLED=y
 CONFIG_BT_BLUEDROID_ENABLED=y
 CONFIG_BTDM_CTRL_MODE_BTDM=y          # controller supports both BR/EDR and BLE
-CONFIG_BT_CLASSIC_ENABLED=y
+CONFIG_BTDM_CTRL_HCI_MODE_VHCI=y      # BTstack talks to the controller over VHCI
+CONFIG_BT_CLASSIC_ENABLED=n
 CONFIG_BT_BLE_ENABLED=y
-# Classic HID device profile + SDP (Switch reads VID/PID via the Device ID record).
-CONFIG_BT_HID_ENABLED=y
-CONFIG_BT_HID_DEVICE_ENABLED=y
-CONFIG_BT_SDP_COMMON_ENABLED=y
-# Secure Simple Pairing "just works" (no IO capability), so the Switch pairs without a PIN.
-CONFIG_BT_SSP_ENABLED=y
 # BLE GATT server + SMP bonding for the BLE HID transport (bt_ble).
 CONFIG_BT_GATTS_ENABLE=y
 CONFIG_BT_BLE_SMP_ENABLE=y
@@ -34,9 +36,8 @@ CONFIG_BT_BLE_SMP_ENABLE=y
 # BT modem sleep (ORIG mode, main-XTAL low-power clock) is compiled in for the BLE transport:
 # combined with slave latency it lets the controller power the radio down between connection
 # events (BLE connected ~114 -> ~61 mA at 240 MHz, bench 2026-07-14; see bt_ble.cpp). The Classic
-# transport calls esp_bt_sleep_disable() in its init, so BR/EDR behaves exactly like a build
-# without modem sleep: the handshake never sees it, and it saves nothing on a connected Classic
-# link anyway (the QoS-pinned active ACL keeps RX on regardless).
+# transport disables it when it opens the controller (components/btstack port), so BR/EDR behaves
+# exactly like a build without modem sleep and the handshake never sees it.
 CONFIG_PM_ENABLE=n
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=n
 CONFIG_BTDM_CTRL_MODEM_SLEEP=y
@@ -73,9 +74,3 @@ CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
 # --- BLE OTA rollback/verify: keep it simple, accept a new app as valid on first boot (no app
 # self-test handshake). esp_ota_set_boot_partition + reboot is enough for this device.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=n
-
-# --- TEMPORARY Switch 2 bring-up debug (remove before commit): raw HCI ring buffer, dumped with
-# the 'hcilog' console command, to see exactly what reaches the controller.
-CONFIG_BT_HCI_LOG_DEBUG_EN=y
-CONFIG_BT_HCI_LOG_DATA_BUFFER_SIZE=20
-CONFIG_BT_HCI_LOG_ADV_BUFFER_SIZE=5

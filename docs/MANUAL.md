@@ -15,11 +15,10 @@ You can play while charging.
 1. Charge it if needed.
 2. Pick the mode with a gesture (see Gestures below): Switch / Receiver (default) or BLE.
 3. Pair:
-   - **Nintendo Switch:** open Controllers, then Change Grip/Order. The stick appears as a Pro
-     Controller. The blue LED blinks while pairing and is solid once connected.
-   - **8BitDo Retro Receiver / USB Adapter 2:** put the receiver in pairing mode and wake the
-     stick. Pairing takes a few seconds (the stick waits for the host briefly, then completes
-     the connection itself).
+   - **Nintendo Switch and Switch 2:** open Controllers, then Change Grip/Order. The stick appears
+     as a Pro Controller. The blue LED blinks while pairing and is solid once connected.
+   - **8BitDo Retro Receiver:** put the receiver in pairing mode and wake the stick. Pairing takes
+     a few seconds (the stick waits for the host briefly, then completes the connection itself).
    - **BlueRetro (BT Classic):** press BlueRetro's pair button and wake the stick. Expect a few
      connect/disconnect cycles for the first ~20 seconds while BlueRetro's pairing mode settles;
      the link then holds. (BlueRetro also works over the BLE transport.)
@@ -27,10 +26,13 @@ You can play while charging.
      device's Bluetooth menu.
 4. Play. The stick reconnects to the last host automatically on wake.
 
-**Nintendo Switch 2:** direct pairing is not possible for any open controller emulation, because
-the Switch 2 requires a Nintendo-signed device certificate. Use an
-[8BitDo USB Wireless Adapter 2](https://www.8bitdo.com/usb-wireless-adapter-2/) in the dock; it
-bridges the stick's Pro Controller emulation to the Switch 2.
+**Nintendo Switch 2:** pairs directly from Change Grip/Order, exactly like a Switch 1. No adapter
+needed.
+
+**If a Switch 2 won't pair with anything**, including controllers that worked yesterday, power it
+off completely (hold Power, then Power Options, Turn Off) and try again. Sleep is not enough. A
+Switch 2 in this state connects to a controller and then drops it a fraction of a second later,
+every time.
 
 ## Gestures
 
@@ -91,7 +93,7 @@ radio can only be one controller to a console receiver:
 |---|---|---|
 | PC / emulator (BLE) | Yes | The stick shows up as two gamepads. Flip the slider to hand off; map each gamepad to a player in the emulator. |
 | BlueRetro | Yes | Leave the slider on P1 and double-map the buttons to both wired ports in BlueRetro's config. |
-| Nintendo Switch | No | One Pro Controller is one player. The slider picks which player you report as. |
+| Nintendo Switch / Switch 2 | No | One Pro Controller is one player. The slider picks which player you report as. |
 | 8BitDo Retro Receiver | No | One receiver occupies one NES port. Same as above. |
 
 Set the slider before or while you pair.

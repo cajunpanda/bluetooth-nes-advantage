@@ -30,9 +30,11 @@ substring, e.g. `TC2030`, or an exact path). Log defaults to `/tmp/serial_proxy.
 (`--log` / `SERIAL_PROXY_LOG`). `pio device monitor` needs a real TTY; reading the logfile is the
 scriptable path.
 
-## `patch_bluedroid_sniff.py`: pre-build Bluedroid patch
+## Pre-build Bluedroid patches (removed)
 
-Applied automatically by the PlatformIO build (`extra_scripts` in `platformio.ini`). It makes the
-Bluedroid Classic HID device present as a link-layer slave that never initiates sniff, matching real
-Pro Controller behavior. Required for stable connections to the 8BitDo receiver and the Switch; a
-no-op for BLE builds. See [`../docs/switch_pro_protocol.md`](../docs/switch_pro_protocol.md).
+This directory used to hold `patch_bluedroid_*.py`, PlatformIO `extra_scripts` that edited the
+Bluedroid Classic stack in place to make its HID device behave like a real Pro Controller. The
+Classic transport now runs on BTstack, which does all of it natively, and Bluedroid's Classic half
+is compiled out - so the patches are gone. They are in git history if a Bluedroid Classic path is
+ever revived. See [`../docs/FIRMWARE.md`](../docs/FIRMWARE.md) "Two Bluetooth host stacks" and
+[`../firmware/components/btstack/README.md`](../firmware/components/btstack/README.md).
