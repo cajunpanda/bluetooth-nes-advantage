@@ -433,7 +433,8 @@ void handle_can_send_now() {
 // --- Connection state machine -------------------------------------------------------------------
 void kick_timer_handler(btstack_timer_source_t* ts) {
     if (s_hid_cid != 0) return;                       // host beat us to it
-    if (bd_addr_cmp(s_peer, (uint8_t*)"\0\0\0\0\0\0") == 0) return;
+    static const bd_addr_t kZeroAddr = {0, 0, 0, 0, 0, 0};
+    if (bd_addr_cmp(s_peer, kZeroAddr) == 0) return;  // no host to page yet
     if (s_kick_attempts >= kKickMaxAttempts) {
         ESP_LOGW(TAG, "device-initiated HID: giving up after %u attempts, back to passive",
                  s_kick_attempts);
@@ -595,6 +596,7 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
 // Publish the snapshot, then ask the run loop to ship it. The pending flag coalesces bursts: at
 // most one callback is in flight, and it always sees the newest state.
 std::atomic<bool> s_input_pending{false};
+std::atomic<bool> s_run_loop_ready{false};   // set once the run loop is initialized and armed
 
 void on_input_changed(void* context) {
     (void)context;
@@ -609,23 +611,20 @@ btstack_context_callback_registration_t s_input_cb = {
 };
 
 void nudge_run_loop() {
+    // The app polls inputs from its first tick, which can precede the stack coming up.
+    if (!s_run_loop_ready.load()) return;
     if (s_input_pending.exchange(true)) return;   // one already queued; it will see the new state
     btstack_run_loop_execute_on_main_thread(&s_input_cb);
 }
 
 // --- Ops implementation -------------------------------------------------------------------------
+// The whole stack is brought up here, on the run-loop task, and not in pro_init(): the FreeRTOS
+// run loop records the task that calls btstack_run_loop_init() as the one to notify for any
+// cross-thread work (btstack_run_loop_freertos.c: btstack_run_loop_task = xTaskGetCurrentTaskHandle()).
+// Initializing from the app's task would point every wakeup at the wrong task - including the VHCI
+// transport's own packet delivery, which hands each incoming HCI packet to the run loop that way -
+// and the stack would sit silent forever, never reaching HCI_STATE_WORKING.
 void btstack_task(void*) {
-    hci_power_control(HCI_POWER_ON);
-    btstack_run_loop_execute();       // never returns
-}
-
-void pro_init() {
-    ESP_LOGI(TAG, "Switch Pro / BT Classic, bringing up BTstack (BR/EDR only this boot)");
-
-    esp_bt_controller_mem_release(ESP_BT_MODE_BLE);   // one radio at a time: free the BLE half
-    // The controller itself is initialized and enabled (Classic-only) by the VHCI transport's
-    // open(), which BTstack calls from hci_power_control below.
-
     btstack_memory_init();
     btstack_run_loop_init(btstack_run_loop_freertos_get_instance());
     hci_init(hci_transport_esp32_vhci_get_instance(), nullptr);
@@ -700,8 +699,18 @@ void pro_init() {
     s_hci_event_cb.callback = &packet_handler;
     hci_add_event_handler(&s_hci_event_cb);
 
-    xTaskCreatePinnedToCore(btstack_task, "btstack", 6144, nullptr, 5, nullptr, 0);
     ESP_LOGI(TAG, "init done, pair from the Switch 'Change Grip/Order' screen or an 8BitDo receiver");
+
+    s_run_loop_ready.store(true);      // the app's input nudges are safe to queue from here on
+    hci_power_control(HCI_POWER_ON);   // opens the transport: controller init + enable, Classic-only
+    btstack_run_loop_execute();        // never returns
+}
+
+void pro_init() {
+    ESP_LOGI(TAG, "Switch Pro / BT Classic, bringing up BTstack (BR/EDR only this boot)");
+    esp_bt_controller_mem_release(ESP_BT_MODE_BLE);   // one radio at a time: free the BLE half
+    // Everything else runs on the run-loop task; see the note above btstack_task.
+    xTaskCreatePinnedToCore(btstack_task, "btstack", 6144, nullptr, 5, nullptr, 0);
 }
 
 bt::LinkState pro_link_state() { return s_link; }
