@@ -155,14 +155,22 @@ documented at the top of `bt_config.cpp` and mirrored in `web/index.html`; chang
 
 | Term | Approach |
 |---|---|
-| Sample | 1 kHz tick, 2 ms poll loop: about 1 ms average press-to-detect |
-| Hand-off | Reports ship on input change (task notify), not on a timer tick |
-| Air, BLE | Connection interval pinned at 7.5 ms (the BLE floor on this silicon) |
-| Air, Classic | QoS pinned active (t_poll about 10 ms), no sniff during play |
+| Sample | 1 kHz tick, 2 ms poll loop (~2.4 ms real period): about 1.2 ms average press-to-latch |
+| Read | 4021 latch plus 8-bit shift-out: about 0.4 ms at the default 80 MHz |
+| Hand-off | Reports ship on input change (task notify), not on a timer tick: tens of us |
+| Air, BLE | Interval pinned at 7.5 ms (the BLE floor on this silicon): 3.75 ms average wait |
+| Air, Classic | QoS requests t_poll about 10 ms to pin the link active; typical wait a few ms |
 
-The firmware's own contribution is sub-millisecond on Classic (detect to 0x30 hand-off around
-30 us), and pinning the BLE interval at 7.5 ms roughly halves worst-case report wait versus a
-host-chosen 15 ms.
+Board-side total, press to radio hand-off, is roughly 6 ms average on BLE and 4 ms on Classic — both
+inside a single 16.7 ms frame, and small against the host stack and display downstream. Pinning the
+BLE interval at 7.5 ms roughly halves worst-case report wait versus a host-chosen 15 ms. BLE's
+retransmit granularity is a whole interval (+7.5 ms) where Classic retries a slot at a time
+(+1.25 ms), so Classic has both the better average and the gentler jitter tail.
+
+The Classic figure is the softer of the two: the QoS t_poll pin does not actually guarantee the link
+stays out of sniff. A real Switch was observed holding the link in sniff steady state regardless (see
+`../history/power-tuning/README.md`), which would put Classic latency under the negotiated sniff
+interval rather than t_poll. That interval has not been measured.
 
 ### Player select and two-player
 

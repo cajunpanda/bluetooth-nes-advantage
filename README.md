@@ -17,7 +17,7 @@ and it charges through the original cable hole.
 - Wake on button press from a deep sleep that draws microamps
 - Battery life on an 1800 mAh cell: about 17 hours in Switch/Receiver mode, about 37 hours in
   BLE mode, months of standby
-- Low input latency (send-on-change, 7.5 ms BLE connection interval)
+- Low input latency: the board adds about 4 ms in Switch/Receiver mode and about 6 ms in BLE mode
 - Browser-based configuration and over-the-air firmware updates, no cable needed
 - RGB status LEDs, battery level monitoring, 5 V barrel jack charging
 - Play while charging (load-share power path)

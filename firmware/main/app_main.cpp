@@ -409,9 +409,9 @@ extern "C" void app_main(void) {
         update_leds();
         check_timers();
         // Re-poll the 4021 every ~2 ms (needs CONFIG_FREERTOS_HZ=1000; see sdkconfig.defaults). The
-        // read is ~128 us, so this is ~94% idle and leaves the BT task plenty of CPU, and keeps the
-        // press-to-sample latency near ~1 ms. The change-gated log above (50 ms rate-limit) still
-        // protects the UART from a flickering controller.
+        // read is ~0.4 ms at the default 80 MHz, so the loop is ~80% idle and leaves the BT task
+        // plenty of CPU, and keeps press-to-sample latency near ~1 ms on average. The change-gated
+        // log above (50 ms rate-limit) still protects the UART from a flickering controller.
         vTaskDelay(pdMS_TO_TICKS(2));
     }
 }

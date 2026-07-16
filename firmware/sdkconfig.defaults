@@ -73,3 +73,9 @@ CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
 # --- BLE OTA rollback/verify: keep it simple, accept a new app as valid on first boot (no app
 # self-test handshake). esp_ota_set_boot_partition + reboot is enough for this device.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=n
+
+# --- TEMPORARY Switch 2 bring-up debug (remove before commit): raw HCI ring buffer, dumped with
+# the 'hcilog' console command, to see exactly what reaches the controller.
+CONFIG_BT_HCI_LOG_DEBUG_EN=y
+CONFIG_BT_HCI_LOG_DATA_BUFFER_SIZE=20
+CONFIG_BT_HCI_LOG_ADV_BUFFER_SIZE=5

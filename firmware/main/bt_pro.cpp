@@ -98,6 +98,10 @@ void hid_kick_cb(void*) {
     esp_timer_start_once(s_kick_timer, kKickRetryUs);     // retry unless CONNECT stops us
 }
 
+void enter_discoverable() {
+    esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+}
+
 void arm_hid_kick(bool reset_attempts) {
     if (!s_kick_timer) return;
     if (reset_attempts) s_kick_attempts = 0;
@@ -446,7 +450,7 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
     switch (event) {
     case ESP_HIDD_START_EVENT:
         ESP_LOGI(TAG, "HIDD START (status=%d) -> connectable + discoverable", p->start.status);
-        esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+        enter_discoverable();
         s_link = bt::LINK_ADVERTISING;
         // Start passive for both fresh pair and reconnect: hosts that initiate HID themselves (the
         // Switch "Change Grip/Order" screen, the 8BitDo Retro Receiver) get the grace window and
@@ -483,7 +487,7 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
             // A failed/torn-down connect leaves the ACL down; re-assert discoverable so the host can
             // page us again for another try (the kick's own retry timer keeps running if armed).
             s_link = bt::LINK_ADVERTISING;
-            esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+            enter_discoverable();
         }
         break;
     case ESP_HIDD_OUTPUT_EVENT:
@@ -500,7 +504,7 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
         ESP_LOGW(TAG, "HIDD DISCONNECT (reason=%d) -> re-advertise", p->disconnect.reason);
         s_connected = false;
         s_link = bt::LINK_ADVERTISING;
-        esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+        enter_discoverable();
         arm_hid_kick(true);   // a power-cycled host waits for us to re-join
         break;
     case ESP_HIDD_STOP_EVENT:
@@ -536,6 +540,12 @@ void pro_init() {
 #endif
 
     esp_bluedroid_config_t bd_cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
+    // Secure Connections host support: the Switch 2 reads our LMP feature page 1 right after the
+    // ACL comes up and refuses to even start SSP unless the SC host-support bit is set (it drops
+    // the link with reason 0x05 ~60 ms in). The ESP32 controller supports SC (feature page 2);
+    // stock IDF only vetoes the host bit as an AES-CCM-workaround precaution, overridden by
+    // tools/patch_bluedroid_sc_mode.py. The Switch 1 and 8BitDo hosts ignore the bit.
+    bd_cfg.sc_en = true;
     ESP_ERROR_CHECK(esp_bluedroid_init_with_cfg(&bd_cfg));
     ESP_ERROR_CHECK(esp_bluedroid_enable());
 
@@ -559,10 +569,21 @@ void pro_init() {
 
     esp_bt_gap_set_device_name(s_hid_config.device_name);
 
+    // Full real-Pro Class of Device 0x002508, including the "Limited Discoverable" service-class
+    // bit. The Switch 2's Grip-menu inquiry pages a controller only if its CoD matches a real
+    // Pro's byte-for-byte (bench A/B: a BlueZ host presenting 0x002508 with a generic MAC and a
+    // junk-filled EIR was paged within 2 s of the console entering the screen; this device with
+    // 0x000508 and a byte-clean EIR was never paged. The Switch 1 accepts either, and neither
+    // console queries SDP before pairing, so the CoD is the whole gate).
+    // This must be set BEFORE HID startup enables inquiry scan: the ESP32 controller latches the
+    // CoD into its inquiry response at scan-enable and ignores later writes. Stock Bluedroid would
+    // strip the service bit again during the scan-mode change; patch_bluedroid_cod.py makes that
+    // strip additive-only so this CoD survives. Verify at the radio: `hcitool inq` -> 0x002508.
     esp_bt_cod_t cod = {};
-    cod.major = ESP_BT_COD_MAJOR_DEV_PERIPHERAL;
-    cod.minor = ESP_BT_COD_MINOR_PERIPHERAL_GAMEPAD;
-    esp_bt_gap_set_cod(cod, ESP_BT_SET_COD_MAJOR_MINOR);
+    cod.major   = ESP_BT_COD_MAJOR_DEV_PERIPHERAL;
+    cod.minor   = ESP_BT_COD_MINOR_PERIPHERAL_GAMEPAD;
+    cod.service = ESP_BT_COD_SRVC_LMTD_DISCOVER;
+    esp_bt_gap_set_cod(cod, ESP_BT_SET_COD_ALL);
 
     const esp_timer_create_args_t kick_args = {
         .callback = hid_kick_cb,
