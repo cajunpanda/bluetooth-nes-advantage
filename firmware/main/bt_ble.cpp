@@ -193,9 +193,8 @@ const BleProfile kProfiles[] = {
 };
 constexpr uint8_t kNumProfiles = sizeof(kProfiles) / sizeof(kProfiles[0]);
 
-// The chord layer's virtual buttons (see bt::NesInput). No profile applies, so they take fixed
-// numbers from the range no profile uses (3 and 5..10 are free of the 12 declared). 5..8 keeps them
-// contiguous and lands ZL/ZR where a PC or emulator's default map expects shoulders.
+// The chord layer's virtual buttons (see bt::NesInput). Fixed numbers from the range no profile uses
+// (3 and 5..10 are free of the 12 declared); 5..8 lands ZL/ZR where default PC maps expect shoulders.
 constexpr uint8_t kBtnZL = 5, kBtnZR = 6, kBtnHome = 7, kBtnCapture = 8;
 
 enum BleDirMode : uint8_t { DIR_DPAD = 0, DIR_AXES = 1, DIR_BOTH = 2 };

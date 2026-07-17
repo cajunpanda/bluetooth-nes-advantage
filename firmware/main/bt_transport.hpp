@@ -31,10 +31,8 @@ enum LinkState : uint8_t { LINK_IDLE = 0, LINK_ADVERTISING = 1, LINK_CONNECTED =
 // BLE uses it to route the snapshot to that player's HID report so PCs/emulators see P1 and P2 as
 // two separate gamepads, the original Advantage's take-turns hand-off.
 //
-// home/capture/zl/zr are virtual: no NES button produces them. The app's Select-shift chord layer
-// synthesises them and clears the members it consumed, so a transport can treat them as if they
-// were real inputs. They are not profile-mapped (a profile picks which Pro/HID button a NES button
-// means; these have only one meaning), and they are only ever set for the active player.
+// home/capture/zl/zr are virtual: the app's chord layer synthesises them and clears the NES buttons
+// it consumed, so a transport treats them as real inputs. Not profile-mapped - they have one meaning.
 struct NesInput {
     bool a = false, b = false, select = false, start = false;
     bool up = false, down = false, left = false, right = false;
