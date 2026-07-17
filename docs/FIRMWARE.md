@@ -115,6 +115,19 @@ are gone with it (recoverable from git history before the BTstack switch, if eve
 Gestures (hold-combos) are matched in `detect_gesture()` in `app_main.cpp`; the user-facing list is
 in [MANUAL.md](MANUAL.md).
 
+Chords (Select as a shift key) are resolved by `apply_chords()` in `app_main.cpp`, one layer below
+the gestures and above the transports. It synthesises the four buttons the NES stick has no way to
+send (Home, Capture, ZL, ZR) into `bt::NesInput` and clears the NES buttons it consumed, so a
+transport maps them like any other input and needs no chord awareness. Two consequences worth
+knowing before touching that code:
+
+- **Select is withheld, not passed through.** Minus is emitted as a pulse on release when no chord
+  formed, because "hold Select, then push the stick" separates the two presses by hundreds of ms,
+  and no simultaneity window is wide enough to catch that.
+- **The poll loop gates sends on the resolved snapshot, not `stateChanged()`.** The chord layer
+  breaks the 1:1 between raw and reported state in both directions: the Minus pulse ends on a timer
+  with no button moving, and a chord changes what a held button means without the raw state moving.
+
 ### Sleep and wake
 
 The NES buttons sit behind CD4021 shift registers, so wake-on-button cannot be a plain GPIO

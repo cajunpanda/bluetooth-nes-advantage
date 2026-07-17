@@ -10,6 +10,8 @@ and it charges through the original cable hole.
 ## Features
 
 - Direct Nintendo Switch pairing (Switch Pro Controller emulation over BT Classic)
+- Home, ZL + ZR (the NSO retro menu), ZL, ZR, and Capture — buttons the NES stick never had, on
+  Select-held chords, instant and usable mid-game
 - 8BitDo NES Retro Receiver support for playing on a real NES
 - BLE gamepad mode for PC, Android, SteamOS, Linux, and BlueRetro
 - Turbo and slow motion work as normal

@@ -142,6 +142,13 @@ ProState map_input(const bt::NesInput& in, uint8_t profile, uint8_t dir_mode) {
     s.minus = in.select;
     s.plus  = in.start;
 
+    // Virtual buttons from the app's chord layer; no profile applies (see bt::NesInput). The app has
+    // already cleared the NES buttons a chord consumed, so these just ride along.
+    s.home    = in.home;
+    s.capture = in.capture;
+    s.zl      = in.zl;
+    s.zr      = in.zr;
+
     if (dir_mode == DIR_DPAD || dir_mode == DIR_BOTH) {
         s.up = in.up; s.down = in.down; s.left = in.left; s.right = in.right;
     }

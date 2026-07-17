@@ -60,6 +60,8 @@ static bool     s_led_auto = true;                  // false = console owns the 
 static bool     s_sleep_requested = false;          // console `sleep`: enter deep sleep from the loop
 static bool     s_sleep_inhibit = false;            // bench: suppress idle/disconnect auto-sleep
 static uint8_t  s_raw_p1 = 0xFF, s_raw_p2 = 0xFF;   // last raw controller sample (for `diag`)
+static bt::NesInput s_last_sent;                    // last snapshot handed to the transport
+static bool     s_have_sent = false;                // false = force a send (nothing sent, or report zeroed)
 
 static inline int64_t now_ms() { return esp_timer_get_time() / 1000; }
 
@@ -132,9 +134,13 @@ static bool handle_wake() {
 }
 
 // --- Player select -----------------------------------------------------------------------------
+static void chords_reset();            // defined with the chord layer below
+
 static void on_player_change(uint8_t newPlayer) {
     bt::clear_input();                 // zero the previous player's report before switching
     s_player = newPlayer;
+    chords_reset();                    // the shift latch and any pending Minus pulse were the old player's
+    s_have_sent = false;               // clear_input zeroed the report; don't let a compare skip the resend
     ESP_LOGI(TAG, "player select -> P%d", s_player + 1);
 }
 
@@ -165,6 +171,119 @@ static void toggle_transport() {
     led_blink(LED_BLUE, next + 1);
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_restart();
+}
+
+// --- Chords: Select as a shift key -------------------------------------------------------------
+// Buttons the Switch has and the NES doesn't, reachable mid-game. Held on its own Select is still
+// Minus; pressed with another button it shifts that button to a Pro button:
+//
+//   Select + Start -> Home            Select + Left  -> ZL
+//   Select + Up    -> ZL+ZR           Select + Right -> ZR
+//   Select + Down  -> Capture
+//
+// Chord output is held for as long as the chord is (so Select+Down holds Capture to record a clip,
+// and ZL/ZR work in games that want them held), and a chord suppresses the normal role of every
+// button it consumes.
+//
+// A/B are deliberately not chord members: the Turbo dials pulse those lines inside the Advantage's
+// own hardware, so any A/B chord would misfire with turbo on, which is exactly when it'd be used.
+//
+// Three rules keep this from firing during play:
+//
+//  - Only a button that wasn't already held when Select landed shifts. Holding Right and tapping
+//    Select has to stay Right + Minus, not ZR, so s_shift_passthru latches the ones that were.
+//  - Minus is withheld while Select is down and emitted as a pulse on release if no chord formed.
+//    Deferral is the only thing that works here: "hold Select, then push the stick" puts the two
+//    presses hundreds of ms apart, so no simultaneity window is wide enough to catch it.
+//  - A chord blocks the 5 s hold gestures until Select is released. Select+direction is otherwise
+//    G_FORGET (see detect_gesture), which would re-pair the stick if a chord were held too long.
+//    Select+Start is left alone, so holding it 5 s still toggles transport; the Switch sees a Home
+//    press first, which is harmless when you're leaving that host anyway.
+//
+// The slow-motion switch pulses Start in hardware, the way the Turbo dials pulse A/B, so it has to
+// be off to use Select+Start. It already pulses Plus into the game, so it isn't usable in play
+// regardless. Documented in docs/MANUAL.md rather than worked around.
+static constexpr int64_t kMinusPulseMs = 80;   // >= 10 Switch polls (8 ms apart); still reads as a tap
+
+enum ChordBit : uint8_t {   // chord members, in NES poll order after Select
+    CH_START = 0x01, CH_UP = 0x02, CH_DOWN = 0x04, CH_LEFT = 0x08, CH_RIGHT = 0x10,
+};
+
+static bool    s_shift_armed = false;       // Select is down
+static uint8_t s_shift_passthru = 0;        // members already held when Select landed; not chordable
+static bool    s_chord_fired = false;       // a chord formed during this Select press
+static uint8_t s_chord_active = 0;          // members currently shifted (for the log edge)
+static int64_t s_minus_pulse_until = 0;
+
+// Raw member state one poll ago. Deliberately NOT part of chords_reset(): this is button history,
+// not chord state. Zeroing it when Select is released would make the next Select press see an
+// already-held direction as freshly pressed and chord it, which is the exact misfire the passthru
+// latch exists to stop (hold Right, tap Select, tap Select again -> phantom ZR).
+static uint8_t s_prev_members = 0;
+
+static void chords_reset() {
+    s_shift_armed = false;
+    s_shift_passthru = 0;
+    s_chord_fired = false;
+    s_chord_active = 0;
+    s_minus_pulse_until = 0;
+}
+
+static const char* chord_name(uint8_t active) {
+    switch (active) {
+    case CH_START: return "Home";
+    case CH_UP:    return "ZL+ZR";
+    case CH_DOWN:  return "Capture";
+    case CH_LEFT:  return "ZL";
+    case CH_RIGHT: return "ZR";
+    default:       return "multiple";
+    }
+}
+
+// Resolve the shift layer in place. Must run every poll, not just on a button change: the Minus
+// pulse expires on a timer.
+static void apply_chords(bt::NesInput& in) {
+    const uint8_t members = (in.start ? CH_START : 0) | (in.up    ? CH_UP    : 0) |
+                            (in.down  ? CH_DOWN  : 0) | (in.left  ? CH_LEFT  : 0) |
+                            (in.right ? CH_RIGHT : 0);
+
+    if (in.select && !s_shift_armed) {           // Select landed: latch what it can't claim
+        s_shift_armed = true;
+        // Only what was ALREADY down a poll ago is passthru. Comparing against `members` instead
+        // would make a member that lands in the same 2 ms poll as Select look pre-existing, so
+        // slamming Select+Up together (the natural way to hit a chord) would silently miss.
+        s_shift_passthru = s_prev_members & members;
+        s_chord_fired = false;
+        s_chord_active = 0;
+    } else if (!in.select && s_shift_armed) {    // Select released
+        bool plain_select = !s_chord_fired;
+        chords_reset();
+        if (plain_select) s_minus_pulse_until = now_ms() + kMinusPulseMs;
+    }
+
+    if (s_shift_armed) {
+        s_shift_passthru &= members;             // released -> chordable again on the next press
+        const uint8_t active = members & ~s_shift_passthru;
+
+        in.select = false;                       // the shift key itself is never Minus
+        if (active & CH_START) { in.home = true;             in.start = false; }
+        if (active & CH_UP)    { in.zl = in.zr = true;       in.up    = false; }
+        if (active & CH_DOWN)  { in.capture = true;          in.down  = false; }
+        if (active & CH_LEFT)  { in.zl = true;               in.left  = false; }
+        if (active & CH_RIGHT) { in.zr = true;               in.right = false; }
+
+        if (active && active != s_chord_active) ESP_LOGI(TAG, "chord -> %s", chord_name(active));
+        s_chord_active = active;
+        if (active) s_chord_fired = true;
+    }
+
+    // Pressing Select again inside the pulse window cuts the pulse short rather than extending Minus
+    // under the new shift. Re-arming that fast costs a truncated Minus tap; not doing it would leak
+    // Minus into whatever chord the second press forms, which is the thing the deferral exists to
+    // prevent. Keeps the invariant simple: Select is never Minus while the shift is armed.
+    if (!s_shift_armed && now_ms() < s_minus_pulse_until) in.select = true;
+
+    s_prev_members = members;
 }
 
 // --- Gestures (hold-combos). Priority order resolves overlapping button sets. -------------------
@@ -208,6 +327,12 @@ static void check_gestures() {
     // Block the Start-sleep gesture until Start has been released once after a Start-wake.
     if (g == G_SLEEP && s_start_release_required) g = G_NONE;
     if (!nes->getButtonState(s_player, NESController::BUTTON_START)) s_start_release_required = false;
+
+    // Select+direction is a chord (see apply_chords), and it reads as G_FORGET here because that
+    // gesture is Select-with-anything-but-Start. Holding a chord must not re-pair the stick, so a
+    // chord disarms G_FORGET until Select is released. Select+Start reads as G_TRANSPORT and is
+    // untouched: that hold still switches transport.
+    if (g == G_FORGET && s_chord_fired) g = G_NONE;
 
     if (g != tracked) { tracked = g; since = now_ms(); fired = false; }
     if (g != G_NONE && !fired && now_ms() - since >= kGestureHoldMs) {
@@ -280,6 +405,14 @@ static bt::NesInput read_input(uint8_t p) {
     in.left   = nes->getButtonState(p, NESController::BUTTON_LEFT);
     in.right  = nes->getButtonState(p, NESController::BUTTON_RIGHT);
     return in;
+}
+
+// Field-wise, because NesInput has padding a memcmp would read.
+static bool same_input(const bt::NesInput& x, const bt::NesInput& y) {
+    return x.a == y.a && x.b == y.b && x.select == y.select && x.start == y.start &&
+           x.up == y.up && x.down == y.down && x.left == y.left && x.right == y.right &&
+           x.home == y.home && x.capture == y.capture && x.zl == y.zl && x.zr == y.zr &&
+           x.player == y.player;
 }
 
 // --- Console / bench hooks (app_control.hpp) ---------------------------------------------------
@@ -384,9 +517,20 @@ extern "C" void app_main(void) {
           }
           s_raw_p1 = p1; s_raw_p2 = p2; }
 
-        if (nes->stateChanged(0) || nes->stateChanged(1)) {
-            bt::set_input(read_input(s_player), s_profile, s_dirmode);
+        // Resolve the Select-shift layer every poll, and gate the send on the RESOLVED snapshot
+        // rather than on stateChanged: the chord layer breaks the 1:1 between the two. A Minus
+        // pulse ends on a timer with no button moving (a raw-gated send would leave Minus stuck
+        // down until the next press), and a chord changes what a held button means without the raw
+        // state moving at all.
+        bt::NesInput in = read_input(s_player);
+        apply_chords(in);
+        if (!s_have_sent || !same_input(in, s_last_sent)) {
+            bt::set_input(in, s_profile, s_dirmode);
+            s_last_sent = in;
+            s_have_sent = true;
+        }
 
+        if (nes->stateChanged(0) || nes->stateChanged(1)) {
             // Unified controller log: both raw lines (bit order A B Sel Sta U D L R) plus the active
             // player. Rate-limited because a flickering controller otherwise spams UART and can
             // starve the BT task. A deselected line reads all '1' (the player-select sentinel).

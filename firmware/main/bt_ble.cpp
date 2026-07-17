@@ -193,6 +193,11 @@ const BleProfile kProfiles[] = {
 };
 constexpr uint8_t kNumProfiles = sizeof(kProfiles) / sizeof(kProfiles[0]);
 
+// The chord layer's virtual buttons (see bt::NesInput). No profile applies, so they take fixed
+// numbers from the range no profile uses (3 and 5..10 are free of the 12 declared). 5..8 keeps them
+// contiguous and lands ZL/ZR where a PC or emulator's default map expects shoulders.
+constexpr uint8_t kBtnZL = 5, kBtnZR = 6, kBtnHome = 7, kBtnCapture = 8;
+
 enum BleDirMode : uint8_t { DIR_DPAD = 0, DIR_AXES = 1, DIR_BOTH = 2 };
 const char* kDirModeNames[] = { "D-Pad", "Axes", "Both" };
 constexpr uint8_t kNumDirModes = sizeof(kDirModeNames) / sizeof(kDirModeNames[0]);
@@ -225,6 +230,11 @@ void build_report(uint8_t* rep, const bt::NesInput& in, uint8_t profile, uint8_t
     set_button(rep, p.b, in.b);
     set_button(rep, p.select, in.select);
     set_button(rep, p.start, in.start);
+
+    set_button(rep, kBtnZL, in.zl);
+    set_button(rep, kBtnZR, in.zr);
+    set_button(rep, kBtnHome, in.home);
+    set_button(rep, kBtnCapture, in.capture);
 
     if (dir_mode == DIR_DPAD || dir_mode == DIR_BOTH) rep[2] = hat_from_dirs(in) & 0x0F;
     if (dir_mode == DIR_AXES || dir_mode == DIR_BOTH) {

@@ -51,6 +51,40 @@ first: turbo pulses those buttons, so the hold won't register with it on.
 
 Hold **Start** to wake from sleep.
 
+## Buttons the NES stick doesn't have
+
+The Switch wants buttons an NES Advantage never had. Hold **Select** and press another button to
+reach them. Unlike the gestures above these are instant, not 5-second holds, and they work mid-game:
+
+| Hold Select, press | Sends |
+|---|---|
+| Start | Home |
+| Up | ZL + ZR (opens the menu in NSO retro games) |
+| Left | ZL |
+| Right | ZR |
+| Down | Capture (hold to record a clip) |
+
+The button stays down for as long as you hold the chord, so Select + Down held records a video clip
+the same way holding Capture on a Pro Controller does.
+
+Select on its own is still Minus: it's sent when you *release* it, rather than when you press it, so
+that reaching for a chord doesn't fire Minus first. Nothing else changes about it.
+
+A few things worth knowing:
+
+- **Press Select first**, then the other button. A direction you were already holding keeps steering
+  — running right and tapping Select stays Right + Minus, it won't fire ZR. Let go of the direction
+  and press it again if you want the chord.
+- **Turn the slow-motion switch off** to use Select + Start. It pulses Start in hardware, the same
+  way the Turbo dials pulse A and B, so it fires Home over and over. (It also pulses Plus into the
+  game, so it isn't much use in play regardless.)
+- The Turbo dials don't interfere: no chord uses A or B.
+- Holding Select + Start for 5 seconds still switches mode, as above. You'll see the Switch's Home
+  menu open on the way, which doesn't matter — the stick is reconnecting to something else anyway.
+
+On the BLE transport these send buttons 5 (ZL), 6 (ZR), 7 (Home), and 8 (Capture) instead, since a
+PC or emulator has no Home button to press.
+
 ## LEDs
 
 | LED | Meaning |
