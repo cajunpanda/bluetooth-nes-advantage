@@ -15,6 +15,14 @@ coupled artifacts:
 
 - Pin map: `firmware/main/board_config.h` and `docs/HARDWARE.md` describe the same pins and must stay
   in sync. If you change one, change the other.
+- Version: **two** places, bump both. `FW_VERSION` in `firmware/main/bt_config.cpp` is what the
+  config GATT reports and the web app shows; `firmware/version.txt` is ESP-IDF's `PROJECT_VER` and
+  lands in the app descriptor (`esp_ota_get_app_description()`), which is what OTA tooling reads.
+  Nothing greps `version.txt` — CMake reads it implicitly — and it is captured at **configure** time,
+  so a bump needs a clean build (`rm -rf firmware/.pio/build/wroom32`) to take effect. Missing this
+  is why the v2.1.0 release shipped an app descriptor still claiming `2.0.0`. Verify before tagging:
+  `strings firmware/.pio/build/wroom32/firmware.bin | grep -axE '[0-9]+\.[0-9]+\.[0-9]+'` should show
+  only the new version.
 - Hardware (BOM, connection maps, layout): `docs/HARDWARE.md`
 - Firmware build, architecture, sleep/wake, transports, config mode, latency: `docs/FIRMWARE.md`
 - Switch Pro protocol bytes: `docs/switch_pro_protocol.md`
