@@ -127,6 +127,7 @@ static inline void touch() { s_last_activity_ms = now_ms(); }
 // --- LEDs (blue = config mode; red = no controller detected; harmless if unpopulated) ----------
 void led_config_on(bool on) { gpio_set_level((gpio_num_t)LED_BLUE, on ? 0 : 1); }
 void led_fault_on(bool on)  { gpio_set_level((gpio_num_t)LED_RED,  on ? 0 : 1); }
+void led_mode_on(bool on)   { gpio_set_level((gpio_num_t)LED_GREEN, on ? 0 : 1); }
 
 // --- INFO JSON ---------------------------------------------------------------------------------
 char s_info_buf[480];
@@ -213,8 +214,16 @@ void ota_begin(const uint8_t* val, uint16_t len) {
     s_ota_expect_crc = get_u32(val + 5);
     s_ota_part = esp_ota_get_next_update_partition(nullptr);
     if (!s_ota_part) { ota_error(2, "no ota slot"); return; }
-    ESP_LOGI(TAG, "OTA begin: %u bytes -> %s (erasing)", (unsigned)s_ota_size, s_ota_part->label);
-    esp_err_t e = esp_ota_begin(s_ota_part, s_ota_size, &s_ota);
+    ESP_LOGI(TAG, "OTA begin: %u bytes -> %s", (unsigned)s_ota_size, s_ota_part->label);
+
+    // OTA_WITH_SEQUENTIAL_WRITES, never s_ota_size. Passing a size makes esp_ota_begin() erase the
+    // whole slot up front (~766 ms on a slot holding the old firmware), which starves the radio long
+    // enough for a central with a short supervision timeout to drop the link mid-erase; READY then
+    // notifies into a dead connection. BlueZ's 720 ms default hits this every time, Android's 20 s
+    // never does. Chunking the erase does not help - the radio needs a real share of the time.
+    // This flag defers erasing to esp_ota_write(), one sector at a time, interleaved with the data.
+    // Requires writes in continuous sequence, which the protocol guarantees.
+    esp_err_t e = esp_ota_begin(s_ota_part, OTA_WITH_SEQUENTIAL_WRITES, &s_ota);
     if (e != ESP_OK) { ota_error(3, esp_err_to_name(e)); return; }
     s_ota_active = true; s_ota_recv = 0; s_ota_acked = 0; s_ota_crc = 0;
     s_ota_last_data_ms = now_ms();
@@ -623,6 +632,7 @@ namespace config {
 void run() {
     ESP_LOGW(TAG, "=== BLE CONFIG / OTA MODE === fw %s (%s)", FW_VERSION, __DATE__ " " __TIME__);
     led_config_on(true);
+    led_mode_on(true);      // green from the moment we're in, not from the first housekeeping tick
 
     // Use a BT address distinct from every gameplay identity so a host's per-address GATT cache can
     // never confuse this config service with the BLE gameplay HID service (which shares the factory
@@ -771,6 +781,10 @@ void run() {
         if (t - last_house_ms >= 100) {
             last_house_ms = t;
             led_config_on(s_connected ? true : (t / 250) % 2 == 0);   // solid connected, blink waiting
+            // Green marks config mode; blue alone can't, it means the same thing in gameplay.
+            // Anti-phase at 250 ms: gameplay's charging-while-pairing is also green+blue, but in
+            // phase at 500 ms, so alternating is a pattern gameplay can't produce.
+            led_mode_on((t / 250) % 2 != 0);
             led_fault_on(s_wiring == NESController::NES_NO_SIGNAL && (t / 250) % 2 == 0);  // no controller
             if (!s_ota_active && t - s_last_activity_ms > kIdleTimeoutMs) {
                 ESP_LOGW(TAG, "config mode idle %llds -> reboot to gameplay",

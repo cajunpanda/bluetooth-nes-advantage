@@ -95,6 +95,11 @@ PC or emulator has no Home button to press.
 | Green blinking | Charging |
 | Green solid | Fully charged |
 | Red blinking | Battery low (under 20%) |
+| Green and blue alternating, fast | Config / firmware-update mode |
+
+In config / firmware-update mode the green LED blinks the whole time, alternating with blue, so you
+can tell at a glance that the gesture took. Once the browser connects, blue goes solid and green
+keeps blinking.
 
 ## Button profiles and directional modes
 
