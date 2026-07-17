@@ -1,0 +1,15 @@
+{
+  "_comment": "benchmux ble_proxy.py profile. UUIDs mirror CFG_UUID128() in firmware/main/bt_config.cpp (little-endian byte array there, canonical string here) and web/index.html -- change all three together. Only served in BLE config/OTA mode: reach it with `serial_proxy.py send config` or the A+B+Select 5 s gesture.",
+  "name": "NES Advantage Config",
+  "service_uuid": "5f1d0000-7c5a-4e2a-9b6e-2a8f3c9d1e00",
+  "console": {
+    "log_uuid": "5f1d0006-7c5a-4e2a-9b6e-2a8f3c9d1e00",
+    "cmd_uuid": "5f1d0007-7c5a-4e2a-9b6e-2a8f3c9d1e00"
+  },
+  "ota": {
+    "control_uuid": "5f1d0003-7c5a-4e2a-9b6e-2a8f3c9d1e00",
+    "data_uuid": "5f1d0004-7c5a-4e2a-9b6e-2a8f3c9d1e00",
+    "window": 8192,
+    "chunk_max": 500
+  }
+}
