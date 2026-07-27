@@ -929,20 +929,23 @@ function fillProfileLists() {
 
 function fillChordWindow(t) {
   const sel = $('s_chordwin'), note = $('chordNote');
-  // Absent on firmware older than 2.3.0, which has no configurable window.
-  if (!Array.isArray(info.chordwin)) {
-    sel.disabled = true; sel.innerHTML = '<option>not supported by this firmware</option>';
-    note.textContent = 'Update to firmware 2.3.0 or newer to configure Select chords.';
-    return;
-  }
   // Classic-only. The buttons chords produce are Switch buttons that no BLE profile reads, so on BLE
   // the layer could only take away a holdable Select. Not offered rather than defaulted off: the
   // device ignores chordwin writes on BLE too, so an enabled control here would be a lie.
+  //
+  // Checked before the firmware-version branch below: BLE has no chords at any version, so telling a
+  // BLE user to update would send them after a feature the update does not bring them.
   if (t === TRANSPORT_BLE) {
     sel.disabled = true;
     sel.innerHTML = '<option value="0">Off - not available in BLE mode</option>';
     note.textContent = 'Select chords are a Switch feature. In BLE mode Select is always an '
                      + 'ordinary button you can hold.';
+    return;
+  }
+  // Absent on firmware older than 2.3.0, which has no configurable window.
+  if (!Array.isArray(info.chordwin)) {
+    sel.disabled = true; sel.innerHTML = '<option>not supported by this firmware</option>';
+    note.textContent = 'Update to firmware 2.3.0 or newer to configure Select chords.';
     return;
   }
   sel.disabled = false;
