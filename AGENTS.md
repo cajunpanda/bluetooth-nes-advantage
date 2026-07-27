@@ -37,8 +37,19 @@ Firmware (from `firmware/`):
 pio run -e wroom32             # build the gameplay firmware
 ```
 
-A build is the main static check; there is no unit-test suite. Treat warnings in `main/*.cpp` as
-regressions.
+A build is the main static check. Treat warnings in `main/*.cpp` as regressions.
+
+Host-side logic tests (no hardware, no ESP-IDF) cover the parts worth checking off-target:
+
+```bash
+./tests/run.sh                 # build and run; non-zero exit on failure
+```
+
+Coverage is narrow on purpose: today it is the chord layer in `app_main.cpp`, whose state machine has
+timing edges that are miserable to find on hardware. The tests compile the real code, lifted out of
+`firmware/main/` by `tests/run.sh` and built against stubs, so they track edits to the source rather
+than drifting from it. See [`tests/README.md`](tests/README.md) before adding one, and note that the
+extraction keys on banner comments in the source that must not be renamed unilaterally.
 
 Flashing and serial, when hardware is attached, go through **benchmux** (a standalone bench serial
 proxy, `serial_proxy.py`) so multiple readers (a human terminal and an agent reading the log file)

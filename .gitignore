@@ -1,3 +1,6 @@
+# --- Host-side tests ---
+tests/.build/
+
 # --- Firmware (ESP-IDF / PlatformIO) ---
 firmware/build/
 firmware/.pio/
