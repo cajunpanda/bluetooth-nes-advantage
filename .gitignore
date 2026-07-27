@@ -1,6 +1,10 @@
 # --- Host-side tests ---
 tests/.build/
 
+# --- Design detector hook (shared config is committed; cache and overrides are not) ---
+.impeccable/hook.cache.json
+.impeccable/config.local.json
+
 # --- Firmware (ESP-IDF / PlatformIO) ---
 firmware/build/
 firmware/.pio/

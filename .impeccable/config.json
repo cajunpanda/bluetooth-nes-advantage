@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "single-font",
+        "value": "*",
+        "files": [
+          "web/index.html"
+        ],
+        "createdAt": "2026-07-27T02:50:42.066Z",
+        "reason": "Page pairs --font-sans (prose) with --font-mono (labels, chips, readouts, console); hierarchy carried by weight 400-680 and size 0.6-1.75rem"
+      }
+    ]
+  }
+}
