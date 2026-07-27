@@ -898,9 +898,41 @@ function onInfo(dv) {
   $('wiringAlert').hidden = (info.wiring ?? 'ok') !== 'none';
   $('fwRunning').textContent = info.fw ? `running v${info.fw} - ${info.slot ?? ''}` : '';
   if (!sawInput) paintBattery((info.batt == null || info.batt < 0) ? null : info.batt, 0);
-  $('s_transport').value = String(info.transport ?? 0);
+  if (!touched.has('s_transport')) $('s_transport').value = String(info.transport ?? 0);
   fillProfileLists();
   log('device info updated', 'dim-t');
+}
+
+// Settings the user has changed but not applied yet. The device republishes INFO on its own (a
+// console command, the controller-wiring status changing), and every INFO used to rebuild these
+// selects from device state: an unsaved pick was silently reverted, and Apply then wrote the old
+// value back. Rebuilding the <option> list also drops the click in progress if the dropdown is open,
+// which is how this usually got hit. Cleared on connect and once Apply has written them.
+const SETTING_IDS = ['s_transport', 's_profile', 's_dirmode', 's_chordwin'];
+const touched = new Set();
+SETTING_IDS.forEach(id => $(id).addEventListener('change', () => touched.add(id)));
+function clearTouched() { touched.clear(); }
+
+// Swap a select's options only when they actually differ, so a redraw never disturbs an open
+// dropdown. Returns true when the option set was replaced, which means any pending pick is void.
+function renderOptions(sel, entries) {
+  const same = sel.options.length === entries.length &&
+               entries.every(([v, label], i) => sel.options[i].value === String(v) &&
+                                                sel.options[i].textContent === label);
+  if (same) return false;
+  sel.innerHTML = '';
+  for (const [v, label] of entries) {
+    const o = document.createElement('option');
+    o.value = String(v); o.textContent = label;
+    sel.appendChild(o);
+  }
+  return true;
+}
+
+// Adopt the device's value unless the user has an unapplied pick in this control.
+function selectValue(sel, value, optionsChanged) {
+  if (optionsChanged) touched.delete(sel.id);
+  if (!touched.has(sel.id)) sel.value = String(value);
 }
 
 // Select-chord window. 0 = off, 65535 = withhold for the whole press (the 2.2.x behaviour).
@@ -954,13 +986,7 @@ function fillChordWindow(t) {
   // Keep an out-of-list value (set over the console) selectable rather than silently rewriting it.
   if (!choices.some(([v]) => v === cur)) choices.push([cur, `Custom - ${cur} ms`]);
   choices.sort((a, b) => a[0] - b[0]);
-  sel.innerHTML = '';
-  for (const [v, label] of choices) {
-    const o = document.createElement('option');
-    o.value = String(v); o.textContent = label;
-    if (v === cur) o.selected = true;
-    sel.appendChild(o);
-  }
+  selectValue(sel, cur, renderOptions(sel, choices));
   updateChordNote();
 }
 
@@ -977,13 +1003,8 @@ function updateChordNote() {
 }
 $('s_chordwin').addEventListener('change', updateChordNote);
 function fillSelect(sel, items, selected) {
-  sel.innerHTML = '';
-  items.forEach((name, i) => {
-    const o = document.createElement('option');
-    o.value = String(i); o.textContent = `${i + 1}. ${name}`;
-    if (i === selected) o.selected = true;
-    sel.appendChild(o);
-  });
+  selectValue(sel, selected,
+              renderOptions(sel, items.map((name, i) => [i, `${i + 1}. ${name}`])));
 }
 $('s_transport').addEventListener('change', fillProfileLists);
 
@@ -1000,6 +1021,7 @@ $('apply').onclick = async () => {
     await sendCmd({ dirmode:   parseInt($('s_dirmode').value, 10) });
     if (!$('s_chordwin').disabled)
       await sendCmd({ chordwin: parseInt($('s_chordwin').value, 10) });
+    clearTouched();   // the device owns these now; later INFO frames may refresh them freely
     const s = $('savedMsg'); s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 1600);
     log('settings written; rebooting device', 'ok-t');
     await sendCmd({ action: 'reboot' });
@@ -1287,6 +1309,7 @@ async function autoReconnect() {
 function onDisconnected() {
   if (connecting) return;   // ignore our own retry-loop disconnects
   log('device disconnected', 'dim-t');
+  clearTouched();           // unapplied picks do not survive the link; the next INFO is the truth
   setConnected(false);
   if (!manualDisconnect && device) autoReconnect();
   manualDisconnect = false;
