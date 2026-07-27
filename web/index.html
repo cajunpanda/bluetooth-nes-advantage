@@ -1037,10 +1037,38 @@ function crc32(buf) {
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
+// Reject an image esp_ota_write would refuse, before spending a minute sending it over BLE. An OTA
+// image is a bare app partition: 0xE9 at byte 0, and esp_app_desc_t's magic at 0x20. The blank-board
+// release asset is a merged flash image padded from 0x0, so it opens with 0xFF where the bootloader
+// hole is; that is the mistake worth naming, since the two files sit side by side in a release.
+const ESP_IMAGE_MAGIC = 0xE9, ESP_APP_DESC_MAGIC = 0xABCD5432;
+function otaImageProblem(buf) {
+  if (buf.byteLength < 0x24) return 'That file is too small to be a firmware image.';
+  const b = new Uint8Array(buf, 0, 1)[0];
+  if (b === 0xFF) {
+    return 'That looks like the full-flash image for a blank board, which can only be flashed '
+         + 'over a serial cable at 0x0. For an over-the-air update use firmware-vX.Y.Z.bin.';
+  }
+  if (b !== ESP_IMAGE_MAGIC) return 'That is not an ESP32 firmware image.';
+  if (new DataView(buf).getUint32(0x20, true) >>> 0 !== ESP_APP_DESC_MAGIC) {
+    return 'That is an ESP32 image but not an app image, so the device would reject it.';
+  }
+  return null;
+}
+
 function onFwFile(file) {
   if (!file) return;
   const r = new FileReader();
   r.onload = () => {
+    const problem = otaImageProblem(r.result);
+    if (problem) {
+      otaImage = null;
+      $('fwFlash').disabled = true;
+      $('fwHint').innerHTML = `<b>${file.name}</b> &middot; not usable for OTA`;
+      $('fwStatus').textContent = problem;
+      log(`rejected ${file.name}: ${problem}`, 'err-t');
+      return;
+    }
     otaImage = r.result;
     const size = otaImage.byteLength, crc = crc32(otaImage);
     $('fwHint').innerHTML = `<b>${file.name}</b> &middot; ${(size / 1024).toFixed(0)} KB &middot; crc32 0x${crc.toString(16).padStart(8, '0')}`;
