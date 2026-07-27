@@ -24,6 +24,25 @@ void    set_profile(uint8_t p);
 uint8_t directional_mode();          // d-pad / stick / both index
 void    set_directional_mode(uint8_t m);
 
+// Chord window: how long Select stays a shift key after it lands (see apply_chords in app_main.cpp).
+// Minus can't be reported until the window closes, because HID has no undo -- sending Minus on press
+// and retracting it when a chord forms still leaves the host having acted on the press.
+//
+//   kChordOff  -- chords disabled. Select is an ordinary button: down on press, held while held.
+//   1..65534   -- ms. A chord must start within this long of Select landing; after that Minus commits
+//                 and follows the hold, and no later button chords.
+//   kChordHold -- no limit. Minus is withheld for the whole press and pulsed on release (the 2.2.x
+//                 behaviour): chords can be reached at leisure, but Select can never be held.
+//
+// Classic only. On BLE the chord outputs land on buttons 5-8, which no profile uses, so turning the
+// layer on there could only cost the user a holdable Select and buy nothing. BLE always reads
+// kChordOff and writes are dropped; it is not a stored setting there and nothing should offer it.
+constexpr uint16_t kChordOff  = 0;
+constexpr uint16_t kChordHold = 0xFFFF;
+
+uint16_t chord_window_ms(uint8_t transport);              // transport = bt::Transport; BLE = kChordOff
+void     set_chord_window_ms(uint8_t transport, uint16_t ms);   // no-op on BLE
+
 // BT identity generation. 0 = factory MAC; each forget bumps it so the device comes back with a
 // fresh BT address and a forgotten host can no longer silently auto-reconnect to the stale bond.
 uint8_t identity_generation();

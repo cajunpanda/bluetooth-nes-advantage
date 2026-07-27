@@ -9,8 +9,12 @@
 // GATT contract, keep in lockstep with web/index.html:
 //   service  5f1d0000-7c5a-4e2a-9b6e-2a8f3c9d1e00
 //   INFO     5f1d0001  read + notify   : JSON {name,fw,build,slot,batt,ident,transport,profile,
-//                                              dirmode,profiles[2][],dirmodes[2][]}
-//   CMD      5f1d0002  write           : JSON {transport|profile|dirmode:int} or {action:"reboot|forget"}
+//                                              dirmode,chordwin[2],profiles[2][],dirmodes[2][]}
+//   CMD      5f1d0002  write           : JSON {transport|profile|dirmode|chordwin:int}
+//                                        or {action:"reboot|forget"}
+//     chordwin applies to whichever transport is stored when the write lands, so a client changing
+//     both must write transport first (web/index.html does, in one apply batch). Chords are
+//     Classic-only: chordwin[TRANSPORT_BLE] always reads 0 and writes against BLE are ignored.
 //   OTACTL   5f1d0003  write + notify  : control [op,...] / status [code,...]
 //   OTADATA  5f1d0004  write-no-resp   : raw firmware chunks
 //   INPUT    5f1d0005  read + notify   : live controller frame (7 bytes, see input_frame below)
@@ -58,7 +62,7 @@
 #include "esp_rom_crc.h"
 #include "cJSON.h"
 
-#define FW_VERSION "2.2.1"
+#define FW_VERSION "2.3.0"
 
 static const char* TAG = "bt_config";
 
@@ -121,6 +125,14 @@ const char* wiring_str(uint8_t w) {
     }
 }
 
+// Chord window as console text (see settings::kChordOff / kChordHold).
+const char* chord_window_str(uint16_t ms, char* buf, size_t n) {
+    if (ms == settings::kChordOff)  return "off";
+    if (ms == settings::kChordHold) return "hold";
+    snprintf(buf, n, "%u ms", ms);
+    return buf;
+}
+
 static inline int64_t now_ms() { return esp_timer_get_time() / 1000; }
 static inline void touch() { s_last_activity_ms = now_ms(); }
 
@@ -146,6 +158,11 @@ void build_info_json() {
     cJSON_AddNumberToObject(root, "transport", settings::transport());
     cJSON_AddNumberToObject(root, "profile", settings::profile());
     cJSON_AddNumberToObject(root, "dirmode", settings::directional_mode());
+
+    // Chord window per transport, so the client can switch the transport picker without a round trip.
+    cJSON* cw = cJSON_AddArrayToObject(root, "chordwin");
+    for (uint8_t t = 0; t < bt::TRANSPORT_COUNT; t++)
+        cJSON_AddItemToArray(cw, cJSON_CreateNumber(settings::chord_window_ms(t)));
 
     // Per-transport profile + directional-mode names, from the gameplay ops tables (pure table
     // lookups, safe to call without bringing a transport up).
@@ -297,6 +314,16 @@ void handle_cmd(const uint8_t* val, uint16_t len) {
     if (cJSON_IsNumber(it = cJSON_GetObjectItem(j, "dirmode"))) {
         settings::set_directional_mode((uint8_t)it->valueint); ESP_LOGI(TAG, "set dirmode=%d", it->valueint);
     }
+    if (cJSON_IsNumber(it = cJSON_GetObjectItem(j, "chordwin"))) {
+        int ms = it->valueint;
+        if (ms < 0) ms = 0; else if (ms > 0xFFFF) ms = 0xFFFF;
+        if (settings::transport() == bt::TRANSPORT_BLE) {
+            ESP_LOGI(TAG, "ignoring chordwin=%d: chords are Classic-only", ms);   // BLE is fixed off
+        } else {
+            settings::set_chord_window_ms(settings::transport(), (uint16_t)ms);
+            ESP_LOGI(TAG, "set chordwin=%d", ms);
+        }
+    }
     if (cJSON_IsString(it = cJSON_GetObjectItem(j, "action"))) {
         const char* a = it->valuestring;
         if (!strcmp(a, "reboot")) { cJSON_Delete(j); ESP_LOGW(TAG, "reboot"); vTaskDelay(pdMS_TO_TICKS(200)); esp_restart(); }
@@ -407,7 +434,7 @@ void console_exec(const uint8_t* val, uint16_t len) {
 
     if (!strcmp(cmd, "help")) {
         con_out("commands: help, get, batt, diag, transport classic|ble, profile <n>, dirmode <n>, "
-                "forget, reboot\n");
+                "chord off|hold|<ms>, forget, reboot\n");
     } else if (!strcmp(cmd, "diag")) {
         const char* w = s_wiring == NESController::NES_OK_P1   ? "P1 line live"
                       : s_wiring == NESController::NES_OK_P2   ? "P2 line live"
@@ -422,6 +449,10 @@ void console_exec(const uint8_t* val, uint16_t len) {
                 settings::transport() == bt::TRANSPORT_BLE ? "ble" : "classic",
                 pr + 1, o->profile_name(pr), dm + 1, o->directional_mode_name(dm),
                 settings::identity_generation());
+        char cwbuf[16];
+        con_out("chord window: %s%s\n",
+                chord_window_str(settings::chord_window_ms(settings::transport()), cwbuf, sizeof(cwbuf)),
+                settings::transport() == bt::TRANSPORT_BLE ? " (Classic-only feature)" : "");
         con_out("battery: present=%d pct=%u charging=%d full=%d\n",
                 battery::present(), battery::level_percent(),
                 battery::is_charging(), battery::is_full());
@@ -447,6 +478,23 @@ void console_exec(const uint8_t* val, uint16_t len) {
         int d = a ? atoi(a) : 0;
         if (d < 1 || d > nd) con_out("usage: dirmode <1..%d>\n", nd);
         else { settings::set_directional_mode((uint8_t)(d - 1)); con_out("dirmode -> %d\n", d); publish_info(true); }
+    } else if (!strcmp(cmd, "chord")) {
+        char* a = strtok(nullptr, " \t");
+        int ms = -1;
+        if (a && !strcmp(a, "off"))       ms = settings::kChordOff;
+        else if (a && !strcmp(a, "hold")) ms = settings::kChordHold;
+        else if (a) { ms = atoi(a); if (ms < 1 || ms > 65534) ms = -1; }
+        if (settings::transport() == bt::TRANSPORT_BLE) {
+            con_out("chords are Classic-only; BLE has no chord window "
+                    "(they would land on buttons 5-8, which no profile reads)\n");
+        } else if (ms < 0) {
+            con_out("usage: chord off|hold|<1..65534 ms>\n");
+        } else {
+            settings::set_chord_window_ms(settings::transport(), (uint16_t)ms);
+            char buf[16];
+            con_out("chord window -> %s\n", chord_window_str((uint16_t)ms, buf, sizeof(buf)));
+            publish_info(true);
+        }
     } else if (!strcmp(cmd, "forget")) {
         con_out("forget host / rotate identity; rebooting\n");
         vTaskDelay(pdMS_TO_TICKS(150)); do_forget();

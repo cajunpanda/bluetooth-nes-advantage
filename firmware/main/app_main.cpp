@@ -13,6 +13,7 @@
 #include "esp_log.h"
 
 #include <cstring>
+#include <cstdint>
 #include "esp_sleep.h"
 #include "esp_attr.h"
 #include "esp_timer.h"
@@ -189,7 +190,13 @@ static bool    s_shift_armed = false;       // Select is down
 static uint8_t s_shift_passthru = 0;        // members already held when Select landed; not chordable
 static bool    s_chord_fired = false;       // a chord formed during this Select press
 static uint8_t s_chord_active = 0;          // members currently shifted (for the log edge)
+static bool    s_minus_committed = false;   // window closed with no chord: Minus is live and follows the hold
+static int64_t s_shift_deadline = 0;        // now_ms() past this and the window is closed
 static int64_t s_minus_pulse_until = 0;
+
+// Window length for this boot, read once from NVS for the active transport (see settings.hpp).
+// Cached because apply_chords runs every 2 ms poll and NVS reads are not free.
+static uint16_t s_chord_window = settings::kChordOff;
 
 // Button history, not chord state: chords_reset() must NOT clear it, or the next Select press reads
 // an already-held direction as fresh and chords it (hold Right, tap Select twice -> phantom ZR).
@@ -200,6 +207,8 @@ static void chords_reset() {
     s_shift_passthru = 0;
     s_chord_fired = false;
     s_chord_active = 0;
+    s_minus_committed = false;
+    s_shift_deadline = 0;
     s_minus_pulse_until = 0;
 }
 
@@ -214,13 +223,23 @@ static const char* chord_name(uint8_t active) {
     }
 }
 
-// Resolve the shift layer in place. Must run every poll, not just on a button change: the Minus
-// pulse expires on a timer.
+// Resolve the shift layer in place. Must run every poll, not just on a button change: both the Minus
+// pulse and the chord window expire on timers, with no button moving.
 //
-// Minus is withheld while Select is down and pulsed on release if no chord formed. It can't be sent
-// on press: "hold Select, then push the stick" separates the presses by hundreds of ms, so no
-// simultaneity window catches the chord in time.
+// Minus cannot be reported on press. HID has no undo: once minus=1 is on the wire the host has acted
+// on it, and sending minus=0 when a chord forms doesn't un-open the menu it just opened. So Minus is
+// withheld until the outcome is known -- either a chord forms (Minus never sent) or the window closes
+// without one (Minus commits and follows the hold from there).
+//
+// s_chord_window bounds that withholding:
+//   kChordOff  -- return early, Select is an ordinary button.
+//   kChordHold -- the window never closes; Minus is withheld for the whole press and pulsed on
+//                 release. Chords can be reached at leisure, but Select can never be held.
+//   n ms       -- the window closes n ms after Select lands. A chord must start inside it; after that
+//                 Minus commits, is held for as long as Select is, and no later button chords.
 static void apply_chords(bt::NesInput& in) {
+    if (s_chord_window == settings::kChordOff) return;   // feature disabled: Select passes straight through
+
     const uint8_t members = (in.start ? CH_START : 0) | (in.up    ? CH_UP    : 0) |
                             (in.down  ? CH_DOWN  : 0) | (in.left  ? CH_LEFT  : 0) |
                             (in.right ? CH_RIGHT : 0);
@@ -232,30 +251,48 @@ static void apply_chords(bt::NesInput& in) {
         s_shift_passthru = s_prev_members & members;
         s_chord_fired = false;
         s_chord_active = 0;
+        s_minus_committed = false;
+        s_shift_deadline = (s_chord_window == settings::kChordHold)
+                             ? INT64_MAX : now_ms() + s_chord_window;
     } else if (!in.select && s_shift_armed) {    // Select released
-        bool plain_select = !s_chord_fired;
+        // Pulse only if Minus never reached the host at all. A committed Minus already had its press
+        // and release from the hold; pulsing again would double it.
+        bool pulse = !s_chord_fired && !s_minus_committed;
         chords_reset();
-        if (plain_select) s_minus_pulse_until = now_ms() + kMinusPulseMs;
+        if (pulse) s_minus_pulse_until = now_ms() + kMinusPulseMs;
     }
 
     if (s_shift_armed) {
         s_shift_passthru &= members;             // released -> chordable again on the next press
         const uint8_t active = members & ~s_shift_passthru;
 
-        in.select = false;                       // the shift key itself is never Minus
-        if (active & CH_START) { in.home = true;             in.start = false; }
-        if (active & CH_UP)    { in.zl = in.zr = true;       in.up    = false; }
-        if (active & CH_DOWN)  { in.capture = true;          in.down  = false; }
-        if (active & CH_LEFT)  { in.zl = true;               in.left  = false; }
-        if (active & CH_RIGHT) { in.zr = true;               in.right = false; }
+        // Close the window on the first poll past the deadline unless a chord already formed inside
+        // it. Gated on s_chord_fired alone: a chord still held past the deadline must keep the shift
+        // rather than drop into Minus mid-hold, but a member arriving *after* the deadline must not
+        // resurrect the chord -- that's the case the bounded window exists to rule out.
+        if (!s_chord_fired && now_ms() >= s_shift_deadline) {
+            if (!s_minus_committed) ESP_LOGI(TAG, "chord window closed -> Minus");
+            s_minus_committed = true;
+        }
 
-        if (active && active != s_chord_active) ESP_LOGI(TAG, "chord -> %s", chord_name(active));
-        s_chord_active = active;
-        if (active) s_chord_fired = true;
+        if (s_minus_committed) {
+            in.select = true;                    // plain held Minus; members keep their normal roles
+        } else {
+            in.select = false;                   // the shift key itself is never Minus
+            if (active & CH_START) { in.home = true;             in.start = false; }
+            if (active & CH_UP)    { in.zl = in.zr = true;       in.up    = false; }
+            if (active & CH_DOWN)  { in.capture = true;          in.down  = false; }
+            if (active & CH_LEFT)  { in.zl = true;               in.left  = false; }
+            if (active & CH_RIGHT) { in.zr = true;               in.right = false; }
+
+            if (active && active != s_chord_active) ESP_LOGI(TAG, "chord -> %s", chord_name(active));
+            s_chord_active = active;
+            if (active) s_chord_fired = true;
+        }
     }
 
     // Re-arming inside the pulse window truncates it rather than leaking Minus into the new chord.
-    // Invariant: Select is never Minus while the shift is armed.
+    // Invariant: Select is never Minus while the shift is armed and undecided.
     if (!s_shift_armed && now_ms() < s_minus_pulse_until) in.select = true;
 
     s_prev_members = members;
@@ -306,6 +343,10 @@ static void check_gestures() {
     // Select+direction reads as G_FORGET (Select with anything but Start), so a chord disarms it
     // until Select is released; holding a chord must not re-pair the stick. Select+Start reads as
     // G_TRANSPORT and is untouched.
+    //
+    // Holding Select alone for the 5 s forget gesture now also sends a held Minus once the chord
+    // window closes, since that hold is indistinguishable from meaning it. Harmless (forget reboots),
+    // but it does mean the host sees Minus go down first.
     if (g == G_FORGET && s_chord_fired) g = G_NONE;
 
     if (g != tracked) { tracked = g; since = now_ms(); fired = false; }
@@ -471,6 +512,15 @@ extern "C" void app_main(void) {
     ESP_LOGI(TAG, "profile %u (%s), directional mode %u (%s)",
              s_profile + 1, bt::profile_name(s_profile),
              s_dirmode + 1, bt::directional_mode_name(s_dirmode));
+
+    // Chord window for this transport. Read once: apply_chords runs every poll.
+    s_chord_window = settings::chord_window_ms(transport);
+    if (s_chord_window == settings::kChordOff)
+        ESP_LOGI(TAG, "chord window: off (Select is a plain button)");
+    else if (s_chord_window == settings::kChordHold)
+        ESP_LOGI(TAG, "chord window: hold (Minus withheld until release)");
+    else
+        ESP_LOGI(TAG, "chord window: %u ms", s_chord_window);
 
     s_last_connected_ms = now_ms();
     s_last_battery_ms   = now_ms();

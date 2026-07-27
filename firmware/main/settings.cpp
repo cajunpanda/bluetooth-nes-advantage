@@ -2,6 +2,7 @@
 // Copyright 2026 Aaron Perkins
 
 #include "settings.hpp"
+#include "bt_transport.hpp"   // Transport enum, for the per-transport chord-window keys
 #include <cstring>
 #include "nvs.h"
 #include "esp_log.h"
@@ -16,6 +17,7 @@ constexpr char kKeyTransport[] = "transport";
 constexpr char kKeyProfile[]   = "profile";
 constexpr char kKeyDirMode[]   = "directionalMode";
 constexpr char kKeyIdentGen[]  = "identGen";
+constexpr char kKeyChordCl[]   = "chordWinCl";    // Classic (Switch Pro); BLE has no chord window
 
 nvs_handle_t s_nvs = 0;
 
@@ -28,6 +30,18 @@ uint8_t get_u8(const char* key, uint8_t def) {
 void set_u8(const char* key, uint8_t v) {
     if (!s_nvs) return;
     ESP_ERROR_CHECK(nvs_set_u8(s_nvs, key, v));
+    ESP_ERROR_CHECK(nvs_commit(s_nvs));
+}
+
+uint16_t get_u16(const char* key, uint16_t def) {
+    uint16_t v = def;
+    if (s_nvs) nvs_get_u16(s_nvs, key, &v);
+    return v;
+}
+
+void set_u16(const char* key, uint16_t v) {
+    if (!s_nvs) return;
+    ESP_ERROR_CHECK(nvs_set_u16(s_nvs, key, v));
     ESP_ERROR_CHECK(nvs_commit(s_nvs));
 }
 }  // namespace
@@ -50,6 +64,18 @@ void    set_profile(uint8_t p)   { set_u8(kKeyProfile, p); }
 
 uint8_t directional_mode()              { return get_u8(kKeyDirMode, 0); }
 void    set_directional_mode(uint8_t m) { set_u8(kKeyDirMode, m); }
+
+// Classic gets a bounded window: the Switch needs Home/Capture/ZL/ZR and has no spare inputs, but
+// Select must still be usable as an ordinary held button. BLE is hard off and not stored, so no
+// stale or hand-set value can make Select unholdable on a PC to buy buttons no profile reads.
+uint16_t chord_window_ms(uint8_t transport) {
+    if (transport == bt::TRANSPORT_BLE) return kChordOff;
+    return get_u16(kKeyChordCl, 200);
+}
+void set_chord_window_ms(uint8_t transport, uint16_t ms) {
+    if (transport == bt::TRANSPORT_BLE) return;
+    set_u16(kKeyChordCl, ms);
+}
 
 uint8_t identity_generation()    { return get_u8(kKeyIdentGen, 0); }
 void    bump_identity_generation() {

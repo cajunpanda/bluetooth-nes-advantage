@@ -15,13 +15,17 @@ You can play while charging.
 1. Charge it if needed.
 2. Pick the mode with a gesture (see Gestures below): Switch / Receiver (default) or BLE.
 3. Pair:
+   
    - **Nintendo Switch and Switch 2:** open Controllers, then Change Grip/Order. The stick appears
      as a Pro Controller. The blue LED blinks while pairing and is solid once connected.
+   
    - **8BitDo Retro Receiver:** put the receiver in pairing mode and wake the stick. Pairing takes
      a few seconds (the stick waits for the host briefly, then completes the connection itself).
+   
    - **BlueRetro (BT Classic):** press BlueRetro's pair button and wake the stick. Expect a few
      connect/disconnect cycles for the first ~20 seconds while BlueRetro's pairing mode settles;
      the link then holds. (BlueRetro also works over the BLE transport.)
+   
    - **BLE (PC, phone, emulator):** switch to BLE mode, then pair "NES Advantage" from the
      device's Bluetooth menu.
 4. Play. The stick reconnects to the last host automatically on wake.
@@ -40,14 +44,14 @@ Hold the listed buttons together for about 5 seconds, then release. The LED blin
 Gestures work any time during play. For any gesture that uses A or B, turn the Turbo dials off
 first: turbo pulses those buttons, so the hold won't register with it on.
 
-| Hold for 5 s | Does | Confirm |
-|---|---|---|
-| Start | Sleep (power down) | LEDs off |
-| Select | Forget the paired host, re-pair from scratch | Blue blinks |
-| Select + Start | Switch mode: Switch/Receiver or BLE (restarts) | Blue blinks |
-| A + B + Up | Cycle button profile | Red blinks the profile number |
-| A + B + Down | Cycle directional mode | Red blinks the mode number |
-| A + B + Select | Enter config / firmware-update mode (restarts) | Blue blinks 3 times |
+| Hold for 5 s   | Does                                           | Confirm                       |
+| -------------- | ---------------------------------------------- | ----------------------------- |
+| Start          | Sleep (power down)                             | LEDs off                      |
+| Select         | Forget the paired host, re-pair from scratch   | Blue blinks                   |
+| Select + Start | Switch mode: Switch/Receiver or BLE (restarts) | Blue blinks                   |
+| A + B + Up     | Cycle button profile                           | Red blinks the profile number |
+| A + B + Down   | Cycle directional mode                         | Red blinks the mode number    |
+| A + B + Select | Enter config / firmware-update mode (restarts) | Blue blinks 3 times           |
 
 Hold **Start** to wake from sleep.
 
@@ -56,19 +60,36 @@ Hold **Start** to wake from sleep.
 The Switch wants buttons an NES Advantage never had. Hold **Select** and press another button to
 reach them. Unlike the gestures above these are instant, not 5-second holds, and they work mid-game:
 
-| Hold Select, press | Sends |
-|---|---|
-| Start | Home |
-| Up | ZL + ZR (opens the menu in NSO retro games) |
-| Left | ZL |
-| Right | ZR |
-| Down | Capture (hold to record a clip) |
+| Hold Select, press | Sends                                       |
+| ------------------ | ------------------------------------------- |
+| Start              | Home                                        |
+| Up                 | ZL + ZR (opens the menu in NSO retro games) |
+| Left               | ZL                                          |
+| Right              | ZR                                          |
+| Down               | Capture (hold to record a clip)             |
 
 The button stays down for as long as you hold the chord, so Select + Down held records a video clip
 the same way holding Capture on a Pro Controller does.
 
-Select on its own is still Minus: it's sent when you *release* it, rather than when you press it, so
-that reaching for a chord doesn't fire Minus first. Nothing else changes about it.
+**You have a short window to start the chord**: 200 ms out of the box, about a fifth of a second.
+Press Select and the other button together, or in quick succession. Hold Select for longer than that
+without pressing anything and it settles into being an ordinary Minus, held for as long as you hold
+it, and the next button you press stays itself.
+
+
+
+You can change the window, or turn chords off entirely, in the **Configure** tab of the config page
+(see [Configuration and firmware updates](#configuration-and-firmware-updates) below):
+
+| Setting           | What you get                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Off**           | Select is an ordinary button, exactly like A or Start. No chords at all.                                                                |
+| **100 to 500 ms** | The window above. Shorter is snappier for Select; longer is easier for chords.                                                          |
+| **Hold**          | No limit: reach for a chord whenever. Minus only registers when you let go, and can never be held. This is how 2.2 and earlier behaved. |
+
+Chords are a Switch feature. In **BLE mode they don't exist**: the buttons they produce are ones a PC
+or emulator has no use for, so there is nothing to gain and a holdable Select to lose. The setting
+only appears in Switch/Receiver mode, and Select in BLE mode is always an ordinary button.
 
 A few things worth knowing:
 
@@ -82,19 +103,16 @@ A few things worth knowing:
 - Holding Select + Start for 5 seconds still switches mode, as above. You'll see the Switch's Home
   menu open on the way, which doesn't matter — the stick is reconnecting to something else anyway.
 
-On the BLE transport these send buttons 5 (ZL), 6 (ZR), 7 (Home), and 8 (Capture) instead, since a
-PC or emulator has no Home button to press.
-
 ## LEDs
 
-| LED | Meaning |
-|---|---|
-| Blue solid | Connected to a host |
-| Blue blinking | Pairing, waiting for a host |
-| Blue off | Idle, not connected |
-| Green blinking | Charging |
-| Green solid | Fully charged |
-| Red blinking | Battery low (under 20%) |
+| LED                              | Meaning                       |
+| -------------------------------- | ----------------------------- |
+| Blue solid                       | Connected to a host           |
+| Blue blinking                    | Pairing, waiting for a host   |
+| Blue off                         | Idle, not connected           |
+| Green blinking                   | Charging                      |
+| Green solid                      | Fully charged                 |
+| Red blinking                     | Battery low (under 20%)       |
 | Green and blue alternating, fast | Config / firmware-update mode |
 
 In config / firmware-update mode the green LED blinks the whole time, alternating with blue, so you
@@ -107,17 +125,17 @@ The stick remembers your choices per connection mode.
 
 Button profiles (how NES A/B map onto the host):
 
-| Mode | Profile 1 | Profile 2 |
-|---|---|---|
+| Mode              | Profile 1               | Profile 2                                                 |
+| ----------------- | ----------------------- | --------------------------------------------------------- |
 | Switch / Receiver | Literal: A to A, B to B | NSO NES: A to B, B to Y (matches Switch Online NES games) |
-| BLE | Default | BlueRetro (alternate mapping for BlueRetro adapters) |
+| BLE               | Default                 | BlueRetro (alternate mapping for BlueRetro adapters)      |
 
 Directional modes (where the joystick goes):
 
-| Mode | 1 | 2 | 3 |
-|---|---|---|---|
+| Mode              | 1     | 2          | 3    |
+| ----------------- | ----- | ---------- | ---- |
 | Switch / Receiver | D-Pad | Left stick | Both |
-| BLE | D-Pad | Axes | Both |
+| BLE               | D-Pad | Axes       | Both |
 
 Most NES games on Switch want the NSO NES profile with D-Pad. Use the stick/axes modes for games
 or menus that expect an analog stick.
@@ -128,12 +146,12 @@ The original player-select slider still works. It is built for hot-seat games li
 Bros., where two players share one stick. What it can do depends on the host, because one Bluetooth
 radio can only be one controller to a console receiver:
 
-| Connected to | Take-turns? | How |
-|---|---|---|
-| PC / emulator (BLE) | Yes | The stick shows up as two gamepads. Flip the slider to hand off; map each gamepad to a player in the emulator. |
-| BlueRetro | Yes | Leave the slider on P1 and double-map the buttons to both wired ports in BlueRetro's config. |
-| Nintendo Switch / Switch 2 | No | One Pro Controller is one player. The slider picks which player you report as. |
-| 8BitDo Retro Receiver | No | One receiver occupies one NES port. Same as above. |
+| Connected to               | Take-turns? | How                                                                                                            |
+| -------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
+| PC / emulator (BLE)        | Yes         | The stick shows up as two gamepads. Flip the slider to hand off; map each gamepad to a player in the emulator. |
+| BlueRetro                  | Yes         | Leave the slider on P1 and double-map the buttons to both wired ports in BlueRetro's config.                   |
+| Nintendo Switch / Switch 2 | No          | One Pro Controller is one player. The slider picks which player you report as.                                 |
+| 8BitDo Retro Receiver      | No          | One receiver occupies one NES port. Same as above.                                                             |
 
 Set the slider before or while you pair.
 
@@ -176,10 +194,16 @@ fresh install or track down a dead input.
 
 ### Configure
 
-The **Configure** tab sets the three per-mode options — **Transport** (Switch/Receiver or BLE),
-**Button profile**, and **Directional mode** — the same choices as the on-stick gestures, alongside
-a readout of the device name, firmware version, and running OTA slot. Change what you want and press
-**Apply & reboot** (bottom left) to save; the stick restarts into the new settings.
+The **Configure** tab sets the per-mode options: **Transport** (Switch/Receiver or BLE), **Button
+profile**, **Directional mode**, and **Select chords**. These are the same choices as the on-stick
+gestures, alongside a readout of the device name, firmware version, and running OTA slot. Change what
+you want and press **Apply & reboot** (bottom left) to save; the stick restarts into the new settings.
+
+**Select chords** is the window described in
+[Buttons the NES stick doesn't have](#buttons-the-nes-stick-doesnt-have). It is a Switch feature, so
+it greys out when Transport is set to BLE. Note that the **Test** tab shows the raw buttons coming off the stick, before
+chords are applied, so Select always lights up there the moment you press it no matter what this is
+set to.
 
 ![The Configure tab with transport, profile, and directional-mode settings](images/web-config-settings.png)
 

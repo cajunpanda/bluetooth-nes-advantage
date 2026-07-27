@@ -724,8 +724,11 @@
               <select id="s_profile"></select>
               <label for="s_dirmode">Directional mode</label>
               <select id="s_dirmode"></select>
+              <label for="s_chordwin">Select chords</label>
+              <select id="s_chordwin"></select>
             </div>
-            <p class="note" style="margin-top:0.9rem">Use <b>Apply &amp; reboot</b> (bottom left) to save.</p>
+            <p class="note" id="chordNote" style="margin-top:0.9rem"></p>
+            <p class="note" style="margin-top:0.6rem">Use <b>Apply &amp; reboot</b> (bottom left) to save.</p>
           </div>
 
           <div class="panel">
@@ -900,6 +903,20 @@ function onInfo(dv) {
   log('device info updated', 'dim-t');
 }
 
+// Select-chord window. 0 = off, 65535 = withhold for the whole press (the 2.2.x behaviour).
+// Chords are Classic-only; see fillChordWindow. Transport indices match bt::Transport.
+const TRANSPORT_CLASSIC = 0, TRANSPORT_BLE = 1;
+const CHORD_OFF = 0, CHORD_HOLD = 65535;
+const CHORD_CHOICES = [
+  [CHORD_OFF,  'Off - Select is an ordinary button'],
+  [100,        'Quick - 100 ms to start a chord'],
+  [150,        'Short - 150 ms to start a chord'],
+  [200,        'Normal - 200 ms to start a chord'],
+  [300,        'Relaxed - 300 ms to start a chord'],
+  [500,        'Slow - 500 ms to start a chord'],
+  [CHORD_HOLD, 'Hold - no time limit, Select can never be held'],
+];
+
 function fillProfileLists() {
   if (!info) return;
   const t = parseInt($('s_transport').value, 10);
@@ -907,7 +924,55 @@ function fillProfileLists() {
   const dirs  = (info.dirmodes && info.dirmodes[t]) || [];
   fillSelect($('s_profile'), profs, t === info.transport ? info.profile : 0);
   fillSelect($('s_dirmode'), dirs,  t === info.transport ? info.dirmode : 0);
+  fillChordWindow(t);
 }
+
+function fillChordWindow(t) {
+  const sel = $('s_chordwin'), note = $('chordNote');
+  // Absent on firmware older than 2.3.0, which has no configurable window.
+  if (!Array.isArray(info.chordwin)) {
+    sel.disabled = true; sel.innerHTML = '<option>not supported by this firmware</option>';
+    note.textContent = 'Update to firmware 2.3.0 or newer to configure Select chords.';
+    return;
+  }
+  // Classic-only. The buttons chords produce are Switch buttons that no BLE profile reads, so on BLE
+  // the layer could only take away a holdable Select. Not offered rather than defaulted off: the
+  // device ignores chordwin writes on BLE too, so an enabled control here would be a lie.
+  if (t === TRANSPORT_BLE) {
+    sel.disabled = true;
+    sel.innerHTML = '<option value="0">Off - not available in BLE mode</option>';
+    note.textContent = 'Select chords are a Switch feature. In BLE mode Select is always an '
+                     + 'ordinary button you can hold.';
+    return;
+  }
+  sel.disabled = false;
+  const cur = info.chordwin[t] ?? CHORD_OFF;
+  const choices = CHORD_CHOICES.slice();
+  // Keep an out-of-list value (set over the console) selectable rather than silently rewriting it.
+  if (!choices.some(([v]) => v === cur)) choices.push([cur, `Custom - ${cur} ms`]);
+  choices.sort((a, b) => a[0] - b[0]);
+  sel.innerHTML = '';
+  for (const [v, label] of choices) {
+    const o = document.createElement('option');
+    o.value = String(v); o.textContent = label;
+    if (v === cur) o.selected = true;
+    sel.appendChild(o);
+  }
+  updateChordNote();
+}
+
+// Only reached on Classic; BLE never enables the control.
+function updateChordNote() {
+  const v = parseInt($('s_chordwin').value, 10);
+  const chords = 'Home, ZL+ZR, ZL, ZR and Capture';
+  $('chordNote').textContent =
+    v === CHORD_OFF  ? 'Select works like every other button and can be held. No chords.'
+  : v === CHORD_HOLD ? `Hold Select and press another button for ${chords}, with no rush. `
+                       + 'Select on its own only registers when you let go, and can never be held.'
+  : `Hold Select and press another button within ${v} ms for ${chords}. `
+    + `Wait longer than that and it is an ordinary Select you can hold.`;
+}
+$('s_chordwin').addEventListener('change', updateChordNote);
 function fillSelect(sel, items, selected) {
   sel.innerHTML = '';
   items.forEach((name, i) => {
@@ -926,9 +991,12 @@ async function sendCmd(obj) {
 }
 $('apply').onclick = async () => {
   try {
+    // Transport first: the device applies chordwin to whichever transport is stored when it lands.
     await sendCmd({ transport: parseInt($('s_transport').value, 10) });
     await sendCmd({ profile:   parseInt($('s_profile').value, 10) });
     await sendCmd({ dirmode:   parseInt($('s_dirmode').value, 10) });
+    if (!$('s_chordwin').disabled)
+      await sendCmd({ chordwin: parseInt($('s_chordwin').value, 10) });
     const s = $('savedMsg'); s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 1600);
     log('settings written; rebooting device', 'ok-t');
     await sendCmd({ action: 'reboot' });

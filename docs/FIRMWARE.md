@@ -118,15 +118,33 @@ in [MANUAL.md](MANUAL.md).
 Chords (Select as a shift key) are resolved by `apply_chords()` in `app_main.cpp`, one layer below
 the gestures and above the transports. It synthesises the four buttons the NES stick has no way to
 send (Home, Capture, ZL, ZR) into `bt::NesInput` and clears the NES buttons it consumed, so a
-transport maps them like any other input and needs no chord awareness. Two consequences worth
+transport maps them like any other input and needs no chord awareness. Three consequences worth
 knowing before touching that code:
 
-- **Select is withheld, not passed through.** Minus is emitted as a pulse on release when no chord
-  formed, because "hold Select, then push the stick" separates the two presses by hundreds of ms,
-  and no simultaneity window is wide enough to catch that.
+- **Minus cannot be sent on press.** HID has no undo: once `minus=1` is on the wire the host has
+  acted on it, and sending `minus=0` when the chord arrives doesn't un-open the menu it just opened.
+  So Minus is withheld until the outcome is known: a chord forms (Minus never sent), or the window
+  closes without one (Minus commits and follows the hold from there).
+- **The window is a setting, not a constant.** `settings::chord_window_ms(transport)` is read once
+  at boot into `s_chord_window`. `kChordOff` disables the layer entirely and `apply_chords()` returns
+  immediately, so Select is an ordinary button; `kChordHold` never closes the window, which is the
+  2.2.x behaviour (chords at leisure, Select never holdable); anything else bounds it in ms. Classic
+  defaults to 200 ms. **BLE is hard off**, not merely defaulted off: the chord outputs would land on
+  buttons 5-8 that no profile reads, so `chord_window_ms()` returns `kChordOff` for BLE without
+  consulting NVS and `set_chord_window_ms()` drops the write. The config service and the web page
+  refuse to offer it there for the same reason, so no surface can promise what the device ignores.
 - **The poll loop gates sends on the resolved snapshot, not `stateChanged()`.** The chord layer
   breaks the 1:1 between raw and reported state in both directions: the Minus pulse ends on a timer
   with no button moving, and a chord changes what a held button means without the raw state moving.
+
+The commit that closes the window is gated on `s_chord_fired` alone, not on whether a member is
+currently down. A chord formed *inside* the window keeps the shift for as long as it's held; a member
+arriving *after* the deadline must not resurrect the chord, which is the whole point of bounding it.
+
+This layer has host-side tests: `./tests/run.sh` compiles the chord section out of `app_main.cpp`
+against a fake clock and runs the window modes and edge cases. Run it after touching `apply_chords()`;
+the timing edges are hard to reproduce by hand on a console. The extraction keys on the section's
+banner comments, so renaming them means updating `tests/run.sh` too.
 
 ### Sleep and wake
 
