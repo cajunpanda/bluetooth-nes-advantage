@@ -224,19 +224,19 @@ live device console — the stick's log plus the wired console commands (`help`,
 
 ### Sending a link log for support
 
-If the stick won't reconnect to a host on its own — it works once you pair it, but every session
-starts with pairing again — the device keeps a record of what happened, and that record is what
-makes the problem diagnosable without having your host on hand.
+If the stick won't reconnect on its own (it works once you pair it, but every session starts with
+pairing again), it keeps a record of what happened. That record is what makes the fault
+diagnosable without your host on hand.
 
-1. Reproduce the fault: turn everything on the way you normally do, and let the stick fail to
+1. Reproduce the fault: turn everything on the way you normally do and let the stick fail to
    connect.
 2. Without power-cycling the stick, hold **A + B + Select** for 5 seconds to enter config mode.
-3. Open the config page, connect, and on the **System** tab press **save link log**.
-4. Send the downloaded text file along with your description.
+3. Open the config page, connect, and press **save link log** on the **System** tab.
+4. Send the downloaded text file with your description.
 
-The file lists pairing and reconnect attempts for the last few sessions: whether the host asked for
-the stick's stored pairing key, whether it accepted it, and why each attempt ended. It contains no
-personal data — device addresses and status codes only.
+The file lists pairing and reconnect attempts from the last few sessions: whether the host asked
+for the stick's stored pairing key, whether it accepted it, and why each attempt ended. It holds
+device addresses and status codes only, no personal data.
 
 ### Leave config mode
 

@@ -833,9 +833,9 @@ void run() {
         if (t - last_drain_ms >= 30) {
             last_drain_ms = t;
             // A link-log dump is a few KB against a 3 KB ring that drops what does not fit, and
-            // console_exec runs on the BT task where it must not block. So `dbg` only marks the
-            // dump pending and it is emitted here, a few lines per drain, interleaved with the
-            // drain that empties the ring.
+            // console_exec runs on the BT task, where it must not block. So `dbg` marks the dump
+            // pending and it is emitted here, a few lines per drain, interleaved with the drain
+            // that empties the ring.
             if (s_dump_line >= 0) {
                 size_t total = linklog::line_count();
                 for (int k = 0; k < 6 && s_dump_line < (int)total; k++)

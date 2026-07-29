@@ -138,7 +138,7 @@ void ev_detail(const Rec& r, char* buf, size_t n) {
     case linklog::EV_AUTH:     snprintf(buf, n, "status=0x%02x%s", r.a,
                                         r.a == 0x06 ? " (key missing: host forgot the bond)" : ""); break;
     case linklog::EV_KEY_NEW:  snprintf(buf, n, "type=%u %s", r.a,
-                                        r.b ? "(WE HAD A BOND: the host forgot it and re-paired)"
+                                        r.b ? "(we had a bond: the host forgot it and re-paired)"
                                             : "(fresh pair)"); break;
     case linklog::EV_ENC:      snprintf(buf, n, "status=0x%02x enabled=%u", r.a, r.b); break;
     case linklog::EV_SSP:      snprintf(buf, n, "status=0x%02x", r.a); break;
@@ -156,7 +156,7 @@ void ev_detail(const Rec& r, char* buf, size_t n) {
 void flags_str(uint8_t f, char* buf, size_t n) {
     snprintf(buf, n, "%s%s%s%s%s%s", (f & F_PAGED) ? "paged " : "", (f & F_ACL) ? "acl " : "",
              (f & F_AUTH) ? "auth " : "", (f & F_HID) ? "hid " : "",
-             (f & F_GIVEUP) ? "gave-up " : "", (f & F_NEWKEY) ? "RE-PAIRED " : "");
+             (f & F_GIVEUP) ? "gave-up " : "", (f & F_NEWKEY) ? "re-paired " : "");
     if (!buf[0]) snprintf(buf, n, "nothing ");
 }
 
@@ -255,8 +255,8 @@ void emit_line(size_t i, Out out) {
     if (i <= s_ring.count) {
         size_t idx  = (s_ring.head + kCap - s_ring.count + (i - 1)) % kCap;
         const Rec& r = s_ring.rec[idx];
-        // The ring outlives a reboot, so call the boundary out: without it the timestamps look like
-        // they run backwards where one boot's events meet the next one's.
+        // The ring outlives a reboot, so mark the boundary: without it the timestamps read as
+        // running backwards where one boot's events meet the next one's.
         if (r.ev == EV_BOOT) {
             out("  ---- boot ---- reset=%u transport=%s\n", r.a, r.b ? "ble" : "classic");
             return;

@@ -95,14 +95,13 @@ btstack_packet_callback_registration_t s_hci_event_cb;
 btstack_timer_source_t s_kick_timer;
 uint8_t s_kick_attempts = 0;
 constexpr uint8_t  kKickMaxAttempts = 4;
-// After the fast attempts, keep trying slowly instead of going passive for the rest of the boot.
-// A host that was not listening yet - a dock or console powered up after the stick, which is the
-// ordinary order for someone who turns the controller on first - would otherwise never be paged
-// again, leaving the link entirely to a host that may only accept controller-initiated reconnects.
-// A real Pro keeps knocking. Bounded so a host that is genuinely gone stops costing radio time.
-// In practice the app's unconnected-idle deep sleep (90 s, app_main kConnIdleTimeoutMs) ends the
-// sequence first and only two or three slow pages ever run; the budget below is what bounds it when
-// auto-sleep is off. Waking re-boots, which pages from the top.
+// After the fast attempts, keep paging slowly instead of going passive for the rest of the boot.
+// The fast tier only covers a host that is already listening; a dock or console powered up after
+// the stick misses all four, and a host that accepts only controller-initiated reconnects then
+// waits for a page that never comes. Bounded so a host that is gone stops costing radio time.
+// The app's unconnected-idle deep sleep (90 s, app_main kConnIdleTimeoutMs) usually ends the
+// sequence first, so only two or three slow pages run; the budget here bounds it when auto-sleep
+// is off. Waking reboots, which pages from the top.
 bool s_kick_slow = false;
 uint8_t s_slow_attempts = 0;
 constexpr uint8_t  kSlowMaxAttempts = 6;
@@ -116,8 +115,8 @@ constexpr uint32_t kKickGraceMs = 1500;
 
 // --- Profiles: which Pro buttons the NES face buttons produce ----------------------------------
 // One profile, and no remapping table behind it: NSO's NES emulator reads Pro A/B as NES A/B, and
-// the 8BitDo Retro Receiver does the same, so A->A / B->B is already correct on both hosts. (An
-// "NSO NES" profile shipped through 2.2.1 sending A->B / B->Y, which those hosts read as a swap.)
+// the 8BitDo Retro Receiver does the same, so A->A / B->B is correct on both hosts. Anything that
+// moves the face buttons off A/B reaches those hosts as a swap.
 // Select/Start always map to Minus/Plus. Directions are handled by the directional mode, not here.
 const char* kProfileNames[] = { "Literal" };
 constexpr uint8_t kNumProfiles = sizeof(kProfileNames) / sizeof(kProfileNames[0]);
@@ -463,8 +462,8 @@ void kick_timer_handler(btstack_timer_source_t* ts) {
     static const bd_addr_t kZeroAddr = {0, 0, 0, 0, 0, 0};
     if (bd_addr_cmp(s_peer, kZeroAddr) == 0) return;  // no host to page yet
     if (!s_kick_slow && s_kick_attempts >= kKickMaxAttempts) {
-        // Not the end: drop to the slow cadence below, which is what covers a host that comes up
-        // after we do. arm_hid_kick() re-arms at the slow interval from here on.
+        // Drop to the slow cadence, which covers a host that comes up after we do. arm_hid_kick()
+        // re-arms at the slow interval from here on.
         s_kick_slow = true;
         ESP_LOGW(TAG, "device-initiated HID: %u fast attempts spent, re-paging every %us",
                  s_kick_attempts, (unsigned)(kSlowRepageMs / 1000));
@@ -619,18 +618,18 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
         }
         break;
 
-    // The link-layer facts a "it won't reconnect" report turns on, none of which are visible from
-    // the app log alone: whether the host asked for our key at all, whether it stored a fresh one
-    // (it had forgotten the bond and re-paired), and why the link ended.
+    // Link-layer facts that separate a host-side reconnect fault from ours, none of them visible
+    // in the app log: whether the host asked for our key, whether it stored a fresh one (it had
+    // forgotten the bond and re-paired), and why the link ended.
     case HCI_EVENT_LINK_KEY_REQUEST:
         linklog::event(linklog::EV_KEY_REQ);
         break;
 
     case HCI_EVENT_LINK_KEY_NOTIFICATION:
         // BTstack has no getters for this one, so read the spec layout by hand: 2 bytes of event
-        // header, BD_ADDR (6), link key (16), then the key type. A new key is unremarkable on a
-        // fresh pair and damning on a boot that started with a bond - the host had forgotten us -
-        // so carry which one it was rather than calling every fresh pair suspicious.
+        // header, BD_ADDR (6), link key (16), then the key type. A new key is ordinary on a fresh
+        // pair and a fault on a boot that started with a bond (the host had forgotten us), so
+        // carry which case it is.
         linklog::event(linklog::EV_KEY_NEW, size >= 25 ? packet[24] : 0xff, s_have_bond ? 1 : 0);
         if (s_have_bond) ESP_LOGW(TAG, "host stored a NEW link key despite our bond: it re-paired");
         else             ESP_LOGI(TAG, "link key stored (fresh pair)");

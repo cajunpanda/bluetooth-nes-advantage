@@ -770,8 +770,8 @@
               <button type="button" id="conClear" class="hint-btn">clear</button></div>
             <p class="note" style="margin-bottom:0.6rem">The device's live log, plus config commands
               (<code>help</code>, <code>get</code>, <code>batt</code>, <code>diag</code>,
-              <code>profile</code>, ...). <b>save link log</b> downloads the pairing and reconnect
-              history as a text file to send on for diagnosis.</p>
+              <code>profile</code>, ...). <b>save link log</b> downloads the stick's pairing and
+              reconnect history as a text file.</p>
             <div class="screen" id="conOut" aria-live="polite"></div>
             <div class="clip-row">
               <input type="text" id="conInput" placeholder="type a command, e.g. get" autocomplete="off" spellcheck="false" enterkeyhint="send">
@@ -1048,9 +1048,9 @@ function onLog(dv) {
 }
 
 // ---- link log download ----
-// The device answers `dbg` on the ordinary log stream, a few lines per drain (it will not dump into
-// its own 3 KB ring in one go). So capture the stream and stop on the dump's own footer rather than
-// guessing at a length or a delay.
+// The device answers `dbg` on the ordinary log stream, a few lines per drain, since it will not
+// dump into its own 3 KB ring in one go. So capture the stream and stop on the dump's footer
+// rather than guessing at a length or a delay.
 let cap = null;
 function capture(text) {
   if (!cap) return;

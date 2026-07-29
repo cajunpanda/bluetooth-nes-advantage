@@ -183,25 +183,22 @@ The pin map is in [`../firmware/main/board_config.h`](../firmware/main/board_con
 
 ### Link log
 
-`linklog.cpp` records why a link did or did not come up. It is not a debug mode: a "it won't
-reconnect" report is about what happens at power-on, before anyone could arm anything, and the
-gesture that reads it out reboots the device. So it always records, into storage that survives that
-reboot.
+`linklog.cpp` records why a link did or did not come up. It records always rather than on a switch:
+a failed reconnect happens at power-on, before anything could be armed, and the gesture that reads
+it out reboots the device. Storage is chosen to survive that reboot.
 
 - **RTC ring** (96 events, `RTC_NOINIT_ATTR`): the fine-grained trace. Survives `esp_restart` and
-  deep sleep - the two transitions that matter - but not a battery pull. Events span boots, so the
+  deep sleep, the two transitions that matter, but not a battery pull. Events span boots, so the
   dump prints a `---- boot ----` separator where the timestamps restart.
-- **NVS summary** (8 boots, namespace `linklog`): one 20-byte record per boot for the power-off
-  case. Written only at outcomes - HID up, HID gone, pages exhausted, deep sleep, and immediately
-  *before* the reboot into config mode, since that boot is the one being complained about. Capped
-  at 8 writes per boot: this partition also holds the BTstack link keys, and a debug feature must
-  not churn the bonds' flash.
-- **What it captures:** stored bonds at boot, each page attempt and its status, ACL/authentication/
-  encryption status, whether the host asked for our link key, whether it stored a *new* one (it had
-  forgotten the bond and re-paired - the decisive signal), HID open/close, and the disconnect
-  reason.
-- **Readout:** the `dbg` console command, on the wire or over BLE. Over BLE the dump is paced a few
-  lines per drain by the config loop rather than printed from the command dispatch, which runs on
+- **NVS summary** (8 boots, namespace `linklog`): one 20-byte record per boot, for the power-off
+  case. Written at outcomes only: HID up, HID gone, pages exhausted, deep sleep, and immediately
+  before the reboot into config mode, which is the boot being asked about. Capped at 8 writes per
+  boot, because this partition also holds the BTstack link keys.
+- **What it captures:** stored bonds at boot, each page attempt and its status, ACL, authentication
+  and encryption status, whether the host asked for our link key, whether it stored a new one (it
+  had forgotten the bond and re-paired), HID open and close, and the disconnect reason.
+- **Readout:** the `dbg` console command, on the wire or over BLE. Over BLE the config loop paces
+  the dump a few lines per drain instead of printing it from the command dispatch, which runs on
   the BT task and would overrun the 3 KB log ring. The config page's **save link log** button runs
   `dbg`, captures the stream to its footer, and downloads it as a text file.
 
