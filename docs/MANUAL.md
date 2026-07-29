@@ -49,7 +49,7 @@ first: turbo pulses those buttons, so the hold won't register with it on.
 | Start          | Sleep (power down)                             | LEDs off                      |
 | Select         | Forget the paired host, re-pair from scratch   | Blue blinks                   |
 | Select + Start | Switch mode: Switch/Receiver or BLE (restarts) | Blue blinks                   |
-| A + B + Up     | Cycle button profile                           | Red blinks the profile number |
+| A + B + Up     | Cycle button profile (BLE mode only)           | Red blinks the profile number |
 | A + B + Down   | Cycle directional mode                         | Red blinks the mode number    |
 | A + B + Select | Enter config / firmware-update mode (restarts) | Blue blinks 3 times           |
 
@@ -125,10 +125,14 @@ The stick remembers your choices per connection mode.
 
 Button profiles (how NES A/B map onto the host):
 
-| Mode              | Profile 1               | Profile 2                                                 |
-| ----------------- | ----------------------- | --------------------------------------------------------- |
-| Switch / Receiver | Literal: A to A, B to B | NSO NES: A to B, B to Y (matches Switch Online NES games) |
-| BLE               | Default                 | BlueRetro (alternate mapping for BlueRetro adapters)      |
+| Mode              | Profile 1               | Profile 2                                            |
+| ----------------- | ----------------------- | ---------------------------------------------------- |
+| Switch / Receiver | Literal: A to A, B to B | none                                                 |
+| BLE               | Default                 | BlueRetro (alternate mapping for BlueRetro adapters) |
+
+In Switch / Receiver mode there is nothing to choose: A is A and B is B. Switch Online's NES games
+and the 8BitDo Retro Receiver both read the Pro Controller's A and B as the NES A and B, so the
+literal mapping is already the right one.
 
 Directional modes (where the joystick goes):
 
@@ -137,8 +141,8 @@ Directional modes (where the joystick goes):
 | Switch / Receiver | D-Pad | Left stick | Both |
 | BLE               | D-Pad | Axes       | Both |
 
-Most NES games on Switch want the NSO NES profile with D-Pad. Use the stick/axes modes for games
-or menus that expect an analog stick.
+Most NES games on Switch want D-Pad. Use the stick/axes modes for games or menus that expect an
+analog stick.
 
 ## Player 1 / Player 2 (take-turns play)
 

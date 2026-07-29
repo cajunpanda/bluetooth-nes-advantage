@@ -102,43 +102,25 @@ constexpr uint8_t  kKickMaxAttempts = 4;
 constexpr uint32_t kKickGraceMs = 1500;
 
 // --- Profiles: which Pro buttons the NES face buttons produce ----------------------------------
+// One profile, and no remapping table behind it: NSO's NES emulator reads Pro A/B as NES A/B, and
+// the 8BitDo Retro Receiver does the same, so A->A / B->B is already correct on both hosts. (An
+// "NSO NES" profile shipped through 2.2.1 sending A->B / B->Y, which those hosts read as a swap.)
 // Select/Start always map to Minus/Plus. Directions are handled by the directional mode, not here.
-struct ProProfile {
-    const char* name;
-    // Pro button each NES button activates, addressed by a small enum so the table stays readable.
-    enum Btn { A, B, X, Y } nes_a, nes_b;
-};
-const ProProfile kProfiles[] = {
-    // "Literal": A->A, B->B. Unambiguous in the Switch "Test Input Devices" screen.
-    { "Literal", ProProfile::A, ProProfile::B },
-    // "NSO NES": A->B, B->Y, the standard NSO NES layout (NES A = jump = Switch B).
-    { "NSO NES", ProProfile::B, ProProfile::Y },
-};
-constexpr uint8_t kNumProfiles = sizeof(kProfiles) / sizeof(kProfiles[0]);
+const char* kProfileNames[] = { "Literal" };
+constexpr uint8_t kNumProfiles = sizeof(kProfileNames) / sizeof(kProfileNames[0]);
 
 // --- Directional modes: where the NES d-pad goes ----------------------------------------------
 enum ProDirMode : uint8_t { DIR_DPAD = 0, DIR_STICK = 1, DIR_BOTH = 2 };
 const char* kDirModeNames[] = { "D-Pad", "Left Stick", "Both" };
 constexpr uint8_t kNumDirModes = sizeof(kDirModeNames) / sizeof(kDirModeNames[0]);
 
-void apply_profile_button(ProState& s, ProProfile::Btn which, bool pressed) {
-    if (!pressed) return;
-    switch (which) {
-    case ProProfile::A: s.a = true; break;
-    case ProProfile::B: s.b = true; break;
-    case ProProfile::X: s.x = true; break;
-    case ProProfile::Y: s.y = true; break;
-    }
-}
-
 ProState map_input(const bt::NesInput& in, uint8_t profile, uint8_t dir_mode) {
-    if (profile >= kNumProfiles) profile = 0;
+    (void)profile;                     // single profile; the argument stays for bt::Transport
     if (dir_mode >= kNumDirModes) dir_mode = DIR_DPAD;
-    const ProProfile& p = kProfiles[profile];
 
     ProState s;
-    apply_profile_button(s, p.nes_a, in.a);
-    apply_profile_button(s, p.nes_b, in.b);
+    s.a = in.a;
+    s.b = in.b;
     s.minus = in.select;
     s.plus  = in.start;
 
@@ -820,7 +802,7 @@ void pro_clear_input() {
 }
 
 uint8_t     pro_num_profiles()          { return kNumProfiles; }
-const char* pro_profile_name(uint8_t i) { return i < kNumProfiles ? kProfiles[i].name : "?"; }
+const char* pro_profile_name(uint8_t i) { return i < kNumProfiles ? kProfileNames[i] : "?"; }
 uint8_t     pro_num_dir_modes()         { return kNumDirModes; }
 const char* pro_dir_mode_name(uint8_t i){ return i < kNumDirModes ? kDirModeNames[i] : "?"; }
 
