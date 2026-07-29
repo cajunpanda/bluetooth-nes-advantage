@@ -8,8 +8,9 @@
 //
 // GATT contract, keep in lockstep with web/index.html:
 //   service  5f1d0000-7c5a-4e2a-9b6e-2a8f3c9d1e00
-//   INFO     5f1d0001  read + notify   : JSON {name,fw,build,slot,batt,ident,transport,profile,
-//                                              dirmode,chordwin[2],profiles[2][],dirmodes[2][]}
+//   INFO     5f1d0001  read + notify   : JSON {name,fw,build,slot,batt,wiring,ident,transport,
+//                                              profile,dirmode,linklog,chordwin[2],profiles[2][],
+//                                              dirmodes[2][]}
 //   CMD      5f1d0002  write           : JSON {transport|profile|dirmode|chordwin:int}
 //                                        or {action:"reboot|forget"}
 //     chordwin applies to whichever transport is stored when the write lands, so a client changing
@@ -159,6 +160,9 @@ void build_info_json() {
     cJSON_AddNumberToObject(root, "transport", settings::transport());
     cJSON_AddNumberToObject(root, "profile", settings::profile());
     cJSON_AddNumberToObject(root, "dirmode", settings::directional_mode());
+    // Capability, not a setting: the client offers the link-log download only where `dbg` exists.
+    // Older firmware has no field here and answers that command with "unknown command".
+    cJSON_AddBoolToObject(root, "linklog", true);
 
     // Chord window per transport, so the client can switch the transport picker without a round trip.
     cJSON* cw = cJSON_AddArrayToObject(root, "chordwin");

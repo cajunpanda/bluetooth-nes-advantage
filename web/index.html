@@ -766,12 +766,12 @@
 
           <div class="panel" id="console" hidden>
             <div class="panel-head"><h2>Device console</h2>
-              <button type="button" id="conLinkLog" class="hint-btn">save link log</button>
+              <button type="button" id="conLinkLog" class="hint-btn" disabled>save link log</button>
               <button type="button" id="conClear" class="hint-btn">clear</button></div>
             <p class="note" style="margin-bottom:0.6rem">The device's live log, plus config commands
               (<code>help</code>, <code>get</code>, <code>batt</code>, <code>diag</code>,
               <code>profile</code>, ...). <b>save link log</b> downloads the stick's pairing and
-              reconnect history as a text file.</p>
+              reconnect history as a text file.<span id="linkLogNote"></span></p>
             <div class="screen" id="conOut" aria-live="polite"></div>
             <div class="clip-row">
               <input type="text" id="conInput" placeholder="type a command, e.g. get" autocomplete="off" spellcheck="false" enterkeyhint="send">
@@ -903,6 +903,7 @@ function onInfo(dv) {
   if (!sawInput) paintBattery((info.batt == null || info.batt < 0) ? null : info.batt, 0);
   if (!touched.has('s_transport')) $('s_transport').value = String(info.transport ?? 0);
   fillProfileLists();
+  gateLinkLog();
   log('device info updated', 'dim-t');
 }
 
@@ -1052,6 +1053,16 @@ function onLog(dv) {
 // dump into its own 3 KB ring in one go. So capture the stream and stop on the dump's footer
 // rather than guessing at a length or a delay.
 let cap = null;
+// Capability by presence, the same test the chord window uses: firmware without a link log has no
+// `dbg` command and answers the button with "unknown command", so the download would be a file
+// containing that. Offer the control only where the device says it has one.
+function gateLinkLog() {
+  $('conLinkLog').disabled = !(info && info.linklog);
+  // Only say the firmware is too old when a device actually said so. The console panel stays up
+  // after a disconnect, and with no device there is nothing to update.
+  $('linkLogNote').textContent = (info && !info.linklog)
+    ? ' Update to firmware 2.4.0 or newer to save a link log.' : '';
+}
 function capture(text) {
   if (!cap) return;
   cap.text += text;
@@ -1266,6 +1277,7 @@ function setConnected(on) {
     if (ota) ota.error = 'disconnected';
     infoChr = cmdChr = otaCtlChr = otaDataChr = inputChr = logChr = conChr = null;
     info = null; sawInput = false;
+    gateLinkLog();               // no device, no capability: back to disabled
     $('playerChip').dataset.on = '0';
   }
 }
