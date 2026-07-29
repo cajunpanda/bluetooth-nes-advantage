@@ -190,9 +190,17 @@ Hosts differ in who they expect to open them:
 So `bt_pro_btstack.cpp` starts passive (host-initiated connects just work: BTstack's `hid_device`
 auto-accepts incoming CTRL/INTR) and arms a one-shot "kick" timer on pairing complete, on a bonded
 boot, and on disconnect: if the host has not opened HID within a 1.5 s grace window, the device
-calls `hid_device_connect()` itself, with bounded retries (4 x 5 s) before falling back to passive
-so a dead host cannot pin the radio awake. A successful `HID_SUBEVENT_CONNECTION_OPENED` cancels
-the kick. The grace window also avoids racing a host that is opening its own connection.
+calls `hid_device_connect()` itself. A successful `HID_SUBEVENT_CONNECTION_OPENED` cancels the
+kick. The grace window also avoids racing a host that is opening its own connection.
+
+Retries are bounded in two tiers: 4 fast attempts (each paced by the page's own completion, ~5 s
+apart), then a slow re-page every 30 s, 6 of those, then passive. The slow tier exists because the
+fast one only covers a host that is already listening. Turn the stick on before the console or dock
+- the ordinary order for someone who reaches for the controller first - and all four fast attempts
+land in the ~20 s before the host's radio is up, after which a host that only accepts
+controller-initiated reconnects waits forever for a page that will never come. A real Pro keeps
+knocking. In gameplay the app's 90 s unconnected deep sleep usually ends the sequence before the
+slow budget does; waking reboots and pages from the top.
 
 Grace-window sizing: it must be long enough that hosts which open both channels themselves (Switch
 console, 8BitDo Retro Receiver - both well under 1 s) always win, but short enough to beat

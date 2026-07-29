@@ -29,6 +29,7 @@
 #include "bt_transport.hpp"
 #include "bt_config.hpp"
 #include "console.hpp"
+#include "linklog.hpp"
 #include "app_control.hpp"
 
 static const char* TAG = "app";
@@ -91,6 +92,10 @@ static void led_blink(int pin, uint8_t count) {
 // --- Sleep -------------------------------------------------------------------------------------
 static void enter_sleep() {
     ESP_LOGI(TAG, "entering deep sleep (ULP polls the controller; press Start to wake)");
+    // The boot that never connected is the one worth keeping, and the 90 s unconnected sleep gets
+    // here long before the re-page budget runs out - without this, that boot leaves no summary
+    // behind at all if the battery then comes out. (The RTC ring itself survives deep sleep.)
+    linklog::persist();
     led_set(LED_RED, false); led_set(LED_GREEN, false); led_set(LED_BLUE, false);
 
     // Start both sleeps AND wakes the device, so the ULP baseline must be captured with Start
@@ -160,6 +165,11 @@ static void cycle_directional_mode() {
 }
 static void enter_config_mode() {
     ESP_LOGW(TAG, "entering BLE config/OTA mode; rebooting");
+    // Persist here, not after the reboot: this is the boot whose reconnect just failed, and the
+    // gesture that reads the log out is what ends it. On the far side of esp_restart the summary
+    // would describe config mode instead - all zeroes - and burn a history slot saying nothing.
+    linklog::event(linklog::EV_CONFIG);
+    linklog::persist();
     led_blink(LED_BLUE, 3);
     s_config_magic = kConfigMagic;   // survives esp_restart (RTC_NOINIT); consumed on next boot
     vTaskDelay(pdMS_TO_TICKS(200));
@@ -465,6 +475,9 @@ extern "C" void app_main(void) {
 
     ESP_LOGI(TAG, "Bluetooth NES Advantage, gameplay firmware");
     settings::init();
+    // Before the config-mode branch: a reconnect failure is read out *after* the gesture reboots
+    // into config mode, so the recorder has to be running on that boot too.
+    linklog::init(settings::transport());
 
     // BLE config/OTA mode: the A+B+Select gesture armed s_config_magic and rebooted. Honor it only
     // on a software reset (so power-on garbage in the uninitialized RTC var can't trigger it), and
@@ -476,7 +489,7 @@ extern "C" void app_main(void) {
     s_config_magic = 0;
     if (enter_config) {
         led_init();
-        config::run();
+        config::run();               // summary already written by enter_config_mode(), pre-reboot
     }
 
     settings::apply_bt_identity();       // rotate the BT MAC per identity generation (before BT init)

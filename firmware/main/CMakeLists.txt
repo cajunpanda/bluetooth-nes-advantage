@@ -10,6 +10,7 @@ idf_component_register(
         "power.cpp"
         "battery.cpp"
         "console.cpp"
+        "linklog.cpp"
     INCLUDE_DIRS "."
     # bt_config.cpp pulls in BLE OTA (app_update) and JSON (vendored cjson component);
     # bt_pro_btstack.cpp pulls in the vendored BTstack component. esp_bt etc. are reached via

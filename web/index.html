@@ -765,10 +765,13 @@
           </div>
 
           <div class="panel" id="console" hidden>
-            <div class="panel-head"><h2>Device console</h2><button type="button" id="conClear" class="hint-btn">clear</button></div>
+            <div class="panel-head"><h2>Device console</h2>
+              <button type="button" id="conLinkLog" class="hint-btn">save link log</button>
+              <button type="button" id="conClear" class="hint-btn">clear</button></div>
             <p class="note" style="margin-bottom:0.6rem">The device's live log, plus config commands
               (<code>help</code>, <code>get</code>, <code>batt</code>, <code>diag</code>,
-              <code>profile</code>, ...).</p>
+              <code>profile</code>, ...). <b>save link log</b> downloads the pairing and reconnect
+              history as a text file to send on for diagnosis.</p>
             <div class="screen" id="conOut" aria-live="polite"></div>
             <div class="clip-row">
               <input type="text" id="conInput" placeholder="type a command, e.g. get" autocomplete="off" spellcheck="false" enterkeyhint="send">
@@ -1038,7 +1041,50 @@ function conPrint(text) {
   if (el.textContent.length > 20000) el.textContent = el.textContent.slice(-16000);
   if (atBottom) el.scrollTop = el.scrollHeight;
 }
-function onLog(dv) { conPrint(conDec.decode(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength), { stream: true })); }
+function onLog(dv) {
+  const text = conDec.decode(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength), { stream: true });
+  capture(text);
+  conPrint(text);
+}
+
+// ---- link log download ----
+// The device answers `dbg` on the ordinary log stream, a few lines per drain (it will not dump into
+// its own 3 KB ring in one go). So capture the stream and stop on the dump's own footer rather than
+// guessing at a length or a delay.
+let cap = null;
+function capture(text) {
+  if (!cap) return;
+  cap.text += text;
+  if (cap.text.includes('-- end link log --')) cap.finish(cap.text);
+}
+function downloadText(name, body) {
+  const url = URL.createObjectURL(new Blob([body], { type: 'text/plain' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function saveLinkLog() {
+  if (!conChr || cap) return;
+  const btn = $('conLinkLog');
+  btn.disabled = true;
+  try {
+    let settle;
+    const dump = new Promise((resolve) => { settle = resolve; });
+    // A partial dump still names the failure, so time out rather than hang if the footer is lost.
+    const timer = setTimeout(() => settle(cap.text), 10000);
+    cap = { text: '', finish: (t) => { clearTimeout(timer); settle(t); } };
+    try { await conChr.writeValueWithoutResponse(new TextEncoder().encode('dbg')); }
+    catch (e) { cap.finish(`[dbg failed: ${e}]`); }
+    const text = await dump;
+    const i = text.indexOf('-- link log');
+    const head = [`device: ${info?.name ?? '?'}`, `firmware: ${info?.fw ?? '?'} (${info?.build ?? '?'})`,
+                  `transport: ${info?.transport === TRANSPORT_BLE ? 'BLE' : 'Classic'}`,
+                  `identity gen: ${info?.ident ?? '?'}`, `saved: ${new Date().toISOString()}`, ''].join('\n');
+    downloadText(`nes-advantage-link-log-${info?.fw ?? 'unknown'}.txt`,
+                 head + (i >= 0 ? text.slice(i) : text));
+  } finally { cap = null; btn.disabled = false; }
+}
+$('conLinkLog').onclick = saveLinkLog;
 async function conSend() {
   const inp = $('conInput'), line = inp.value.trim();
   if (!line || !conChr) return;

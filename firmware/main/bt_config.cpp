@@ -36,6 +36,7 @@
 #include "battery.hpp"
 #include "board_config.h"
 #include "bt_transport.hpp"
+#include "linklog.hpp"
 #include "nes_controller.hpp"
 
 #include <cstring>
@@ -412,6 +413,9 @@ void con_out(const char* fmt, ...) {
     fflush(stdout);
 }
 
+// Pending `dbg` dump: -1 idle, otherwise the next link-log line the loop should emit.
+int s_dump_line = -1;
+
 // --- BLE console command dispatch (output streams back over LOG) -------------------------------
 // A small config-mode command set. Everything prints via con_out, which streams over the LOG
 // characteristic, so command output reuses the log stream. Config mode does not bring up the
@@ -433,8 +437,11 @@ void console_exec(const uint8_t* val, uint16_t len) {
     if (!cmd) return;
 
     if (!strcmp(cmd, "help")) {
-        con_out("commands: help, get, batt, diag, transport classic|ble, profile <n>, dirmode <n>, "
-                "chord off|hold|<ms>, forget, reboot\n");
+        con_out("commands: help, get, batt, diag, dbg, transport classic|ble, profile <n>, "
+                "dirmode <n>, chord off|hold|<ms>, forget, reboot\n");
+    } else if (!strcmp(cmd, "dbg")) {
+        // Emitted by the config loop, not here: see the drain in run().
+        s_dump_line = 0;
     } else if (!strcmp(cmd, "diag")) {
         const char* w = s_wiring == NESController::NES_OK_P1   ? "P1 line live"
                       : s_wiring == NESController::NES_OK_P2   ? "P2 line live"
@@ -823,7 +830,20 @@ void run() {
         }
 
         // Stream any buffered device log to the browser.
-        if (t - last_drain_ms >= 30) { last_drain_ms = t; log_drain(); }
+        if (t - last_drain_ms >= 30) {
+            last_drain_ms = t;
+            // A link-log dump is a few KB against a 3 KB ring that drops what does not fit, and
+            // console_exec runs on the BT task where it must not block. So `dbg` only marks the
+            // dump pending and it is emitted here, a few lines per drain, interleaved with the
+            // drain that empties the ring.
+            if (s_dump_line >= 0) {
+                size_t total = linklog::line_count();
+                for (int k = 0; k < 6 && s_dump_line < (int)total; k++)
+                    linklog::emit_line((size_t)s_dump_line++, con_out);
+                if (s_dump_line >= (int)total) s_dump_line = -1;
+            }
+            log_drain();
+        }
 
         // Slow housekeeping: LED + idle timeout.
         if (t - last_house_ms >= 100) {

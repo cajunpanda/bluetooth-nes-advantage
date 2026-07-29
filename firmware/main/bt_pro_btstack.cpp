@@ -23,6 +23,7 @@
 // publish state and hand off with btstack_run_loop_execute_on_main_thread().
 
 #include "bt_transport.hpp"
+#include "linklog.hpp"
 #include "settings.hpp"
 
 #include <atomic>
@@ -94,6 +95,18 @@ btstack_packet_callback_registration_t s_hci_event_cb;
 btstack_timer_source_t s_kick_timer;
 uint8_t s_kick_attempts = 0;
 constexpr uint8_t  kKickMaxAttempts = 4;
+// After the fast attempts, keep trying slowly instead of going passive for the rest of the boot.
+// A host that was not listening yet - a dock or console powered up after the stick, which is the
+// ordinary order for someone who turns the controller on first - would otherwise never be paged
+// again, leaving the link entirely to a host that may only accept controller-initiated reconnects.
+// A real Pro keeps knocking. Bounded so a host that is genuinely gone stops costing radio time.
+// In practice the app's unconnected-idle deep sleep (90 s, app_main kConnIdleTimeoutMs) ends the
+// sequence first and only two or three slow pages ever run; the budget below is what bounds it when
+// auto-sleep is off. Waking re-boots, which pages from the top.
+bool s_kick_slow = false;
+uint8_t s_slow_attempts = 0;
+constexpr uint8_t  kSlowMaxAttempts = 6;
+constexpr uint32_t kSlowRepageMs    = 30'000;
 // Host grace: long enough that hosts which open both channels themselves (Switch console, 8BitDo
 // Retro Receiver, both well under 1 s) always win and cancel the kick, but short enough to beat
 // BlueRetro, which opens CTRL and waits only ~2 s for the controller's INTR before tearing down
@@ -443,21 +456,39 @@ void handle_can_send_now() {
 }
 
 // --- Connection state machine -------------------------------------------------------------------
+void arm_hid_kick(bool reset_attempts);
+
 void kick_timer_handler(btstack_timer_source_t* ts) {
     if (s_hid_cid != 0) return;                       // host beat us to it
     static const bd_addr_t kZeroAddr = {0, 0, 0, 0, 0, 0};
     if (bd_addr_cmp(s_peer, kZeroAddr) == 0) return;  // no host to page yet
-    if (s_kick_attempts >= kKickMaxAttempts) {
-        ESP_LOGW(TAG, "device-initiated HID: giving up after %u attempts, back to passive",
-                 s_kick_attempts);
+    if (!s_kick_slow && s_kick_attempts >= kKickMaxAttempts) {
+        // Not the end: drop to the slow cadence below, which is what covers a host that comes up
+        // after we do. arm_hid_kick() re-arms at the slow interval from here on.
+        s_kick_slow = true;
+        ESP_LOGW(TAG, "device-initiated HID: %u fast attempts spent, re-paging every %us",
+                 s_kick_attempts, (unsigned)(kSlowRepageMs / 1000));
+        linklog::event(linklog::EV_SLOW, s_kick_attempts);
+        arm_hid_kick(false);
         return;
     }
-    s_kick_attempts++;
-    ESP_LOGI(TAG, "host has not opened HID, device-initiating (attempt %u/%u)",
-             s_kick_attempts, kKickMaxAttempts);
+    if (s_kick_slow && s_slow_attempts >= kSlowMaxAttempts) {
+        ESP_LOGW(TAG, "device-initiated HID: giving up after %u fast + %u slow, back to passive",
+                 s_kick_attempts, s_slow_attempts);
+        linklog::event(linklog::EV_GIVEUP, s_kick_attempts, s_slow_attempts);
+        linklog::persist();
+        return;
+    }
+    uint8_t n = s_kick_slow ? ++s_slow_attempts : ++s_kick_attempts;
+    ESP_LOGI(TAG, "host has not opened HID, device-initiating (%s attempt %u/%u)",
+             s_kick_slow ? "slow" : "fast", n, s_kick_slow ? kSlowMaxAttempts : kKickMaxAttempts);
+    linklog::event(linklog::EV_PAGE, n, s_kick_slow ? 1 : 0);
     uint16_t cid = 0;
     uint8_t status = hid_device_connect(s_peer, &cid);
-    if (status != ERROR_CODE_SUCCESS) ESP_LOGW(TAG, "hid_device_connect: 0x%02x", status);
+    if (status != ERROR_CODE_SUCCESS) {
+        ESP_LOGW(TAG, "hid_device_connect: 0x%02x", status);
+        linklog::event(linklog::EV_PAGE_ST, status);
+    }
     // No blind retry timer here: the retry is driven by HID_SUBEVENT_CONNECTION_OPENED reporting
     // failure, which is the only signal that the page actually finished. Re-issuing on a timer
     // while the previous page is still running would stack connect attempts - hid_device_connect()
@@ -468,16 +499,20 @@ void kick_timer_handler(btstack_timer_source_t* ts) {
 }
 
 void arm_hid_kick(bool reset_attempts) {
-    if (reset_attempts) s_kick_attempts = 0;
+    if (reset_attempts) { s_kick_attempts = 0; s_slow_attempts = 0; s_kick_slow = false; }
     btstack_run_loop_remove_timer(&s_kick_timer);
     btstack_run_loop_set_timer_handler(&s_kick_timer, kick_timer_handler);
-    btstack_run_loop_set_timer(&s_kick_timer, kKickGraceMs);
+    // Once slow, stay slow: the failure path re-arms through here too, and re-arming at the 1.5 s
+    // grace would turn the slow cadence back into a fast one.
+    btstack_run_loop_set_timer(&s_kick_timer, s_kick_slow ? kSlowRepageMs : kKickGraceMs);
     btstack_run_loop_add_timer(&s_kick_timer);
 }
 
 void cancel_hid_kick() {
     btstack_run_loop_remove_timer(&s_kick_timer);
     s_kick_attempts = 0;
+    s_slow_attempts = 0;
+    s_kick_slow = false;
 }
 
 void enter_discoverable() {
@@ -506,6 +541,8 @@ void load_bond() {
         n++;
     }
     gap_link_key_iterator_done(&it);
+    linklog::event(linklog::EV_BONDS, (uint8_t)(n > 255 ? 255 : n));
+    if (s_have_bond) linklog::set_peer(s_peer);
     ESP_LOGI(TAG, "stored BT bonds at boot: %d", n);
 }
 
@@ -539,7 +576,6 @@ void on_set_report(uint16_t cid, hid_report_type_t type, int report_size, uint8_
 
 void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint16_t size) {
     (void)channel;
-    (void)size;
     if (packet_type != HCI_EVENT_PACKET) return;
 
     switch (hci_event_packet_get_type(packet)) {
@@ -575,14 +611,51 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
         // resumes on a stored link key with no fresh pairing, so this is the only event that
         // reports the real host on both fresh and resumed links; with two bonds stored, relying on
         // the first bond instead would page the wrong host.
+        linklog::event(linklog::EV_ACL, hci_event_connection_complete_get_status(packet));
         if (hci_event_connection_complete_get_status(packet) == ERROR_CODE_SUCCESS) {
             hci_event_connection_complete_get_bd_addr(packet, s_peer);
+            linklog::set_peer(s_peer);
             ESP_LOGI(TAG, "ACL up: %s", bd_addr_to_str(s_peer));
         }
         break;
 
+    // The link-layer facts a "it won't reconnect" report turns on, none of which are visible from
+    // the app log alone: whether the host asked for our key at all, whether it stored a fresh one
+    // (it had forgotten the bond and re-paired), and why the link ended.
+    case HCI_EVENT_LINK_KEY_REQUEST:
+        linklog::event(linklog::EV_KEY_REQ);
+        break;
+
+    case HCI_EVENT_LINK_KEY_NOTIFICATION:
+        // BTstack has no getters for this one, so read the spec layout by hand: 2 bytes of event
+        // header, BD_ADDR (6), link key (16), then the key type. A new key is unremarkable on a
+        // fresh pair and damning on a boot that started with a bond - the host had forgotten us -
+        // so carry which one it was rather than calling every fresh pair suspicious.
+        linklog::event(linklog::EV_KEY_NEW, size >= 25 ? packet[24] : 0xff, s_have_bond ? 1 : 0);
+        if (s_have_bond) ESP_LOGW(TAG, "host stored a NEW link key despite our bond: it re-paired");
+        else             ESP_LOGI(TAG, "link key stored (fresh pair)");
+        break;
+
+    case HCI_EVENT_PIN_CODE_REQUEST:
+        linklog::event(linklog::EV_PIN_REQ);
+        break;
+
+    case HCI_EVENT_AUTHENTICATION_COMPLETE:
+        linklog::event(linklog::EV_AUTH, hci_event_authentication_complete_get_status(packet));
+        break;
+
+    case HCI_EVENT_ENCRYPTION_CHANGE:
+        linklog::event(linklog::EV_ENC, hci_event_encryption_change_get_status(packet),
+                       hci_event_encryption_change_get_encryption_enabled(packet));
+        break;
+
+    case HCI_EVENT_DISCONNECTION_COMPLETE:
+        linklog::event(linklog::EV_DISC, hci_event_disconnection_complete_get_reason(packet));
+        break;
+
     case HCI_EVENT_SIMPLE_PAIRING_COMPLETE: {
         uint8_t st = hci_event_simple_pairing_complete_get_status(packet);
+        linklog::event(linklog::EV_SSP, st);
         ESP_LOGI(TAG, "SSP complete: status 0x%02x", st);
         if (st == ERROR_CODE_SUCCESS) {
             // A freshly paired host may now sit and wait for the controller to open HID
@@ -600,6 +673,7 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
         case HID_SUBEVENT_CONNECTION_OPENED: {
             uint8_t status = hid_subevent_connection_opened_get_status(packet);
             if (status != ERROR_CODE_SUCCESS) {
+                linklog::event(linklog::EV_HID_FAIL, status);
                 ESP_LOGW(TAG, "HID connect failed, status 0x%02x", status);
                 // Only tear down if we have no link. A kick that loses the race to the host's own
                 // incoming connection reports its failure here *after* that connection opened;
@@ -616,6 +690,10 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
             }
             s_hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
             hid_subevent_connection_opened_get_bd_addr(packet, s_peer);
+            linklog::set_peer(s_peer);
+            linklog::event(linklog::EV_HID_OPEN,
+                           hid_subevent_connection_opened_get_incoming(packet) ? 1 : 0);
+            linklog::persist();     // a working link is worth keeping across a power-off too
             s_input_mode = 0x3F;   // every fresh connection starts in simple mode, like a real Pro
             s_link = bt::LINK_CONNECTED;
             cancel_hid_kick();
@@ -628,6 +706,8 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
             break;
         }
         case HID_SUBEVENT_CONNECTION_CLOSED:
+            linklog::event(linklog::EV_HID_CLOSE);
+            linklog::persist();
             ESP_LOGW(TAG, "HID disconnected -> re-advertise");
             s_hid_cid = 0;
             s_streaming = false;

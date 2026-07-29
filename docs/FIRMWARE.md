@@ -86,6 +86,7 @@ Intel HEX keeps the gap instead of padding it.
 | `bt_pro_btstack.cpp` | BT Classic Switch Pro transport (BTstack) and connection state machine |
 | `bt_ble.cpp` | BLE HID transport, two HID services (P1/P2) for take-turns play |
 | `bt_config.{hpp,cpp}` | BLE config/OTA boot mode: GATT settings service plus `esp_ota` update |
+| `linklog.{hpp,cpp}` | Always-on black box for pairing/reconnect events (see [Link log](#link-log)) |
 | `power.{hpp,cpp}` | ULP sleep polling, deep-sleep entry, post-wake RTC-GPIO release |
 | `battery.{hpp,cpp}` | Battery monitor (ADC divider plus TP4056 status) |
 | `board_config.h` | Pin map for the production board (matches [HARDWARE.md](HARDWARE.md)) |
@@ -179,6 +180,30 @@ The pin map is in [`../firmware/main/board_config.h`](../firmware/main/board_con
   forgotten host cannot half-reconnect against stale pairing state.
 - **Reconnect vs fresh pair.** Classic stays passive and lets the host open the HID channels; it
   does not device-initiate, even with a stored bond. BLE advertises for the host to connect.
+
+### Link log
+
+`linklog.cpp` records why a link did or did not come up. It is not a debug mode: a "it won't
+reconnect" report is about what happens at power-on, before anyone could arm anything, and the
+gesture that reads it out reboots the device. So it always records, into storage that survives that
+reboot.
+
+- **RTC ring** (96 events, `RTC_NOINIT_ATTR`): the fine-grained trace. Survives `esp_restart` and
+  deep sleep - the two transitions that matter - but not a battery pull. Events span boots, so the
+  dump prints a `---- boot ----` separator where the timestamps restart.
+- **NVS summary** (8 boots, namespace `linklog`): one 20-byte record per boot for the power-off
+  case. Written only at outcomes - HID up, HID gone, pages exhausted, deep sleep, and immediately
+  *before* the reboot into config mode, since that boot is the one being complained about. Capped
+  at 8 writes per boot: this partition also holds the BTstack link keys, and a debug feature must
+  not churn the bonds' flash.
+- **What it captures:** stored bonds at boot, each page attempt and its status, ACL/authentication/
+  encryption status, whether the host asked for our link key, whether it stored a *new* one (it had
+  forgotten the bond and re-paired - the decisive signal), HID open/close, and the disconnect
+  reason.
+- **Readout:** the `dbg` console command, on the wire or over BLE. Over BLE the dump is paced a few
+  lines per drain by the config loop rather than printed from the command dispatch, which runs on
+  the BT task and would overrun the 3 KB log ring. The config page's **save link log** button runs
+  `dbg`, captures the stream to its footer, and downloads it as a text file.
 
 ### Config / OTA mode
 

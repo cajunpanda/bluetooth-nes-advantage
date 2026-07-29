@@ -3,6 +3,8 @@
 
 #include "console.hpp"
 
+#include <cstdarg>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -16,6 +18,7 @@
 #include "battery.hpp"
 #include "board_config.h"
 #include "bt_transport.hpp"
+#include "linklog.hpp"
 #include "nes_controller.hpp"
 #include "settings.hpp"
 
@@ -180,6 +183,19 @@ static int cmd_reboot(int, char**) {
     return 0;
 }
 
+// `dbg`: dump the Bluetooth link log (see linklog.hpp). On the wire there is no ring to overrun,
+// so print the whole thing in one go.
+static void dbg_out(const char* fmt, ...) {
+    va_list ap; va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+}
+static int cmd_dbg(int, char**) {
+    size_t n = linklog::line_count();
+    for (size_t i = 0; i < n; i++) linklog::emit_line(i, dbg_out);
+    return 0;
+}
+
 // `heap`: free-heap readout.
 #if defined(CONFIG_BT_HCI_LOG_DEBUG_EN)
 // `hcilog`: dump the raw HCI packet ring buffer (bench debug builds only).
@@ -218,6 +234,7 @@ static void register_cmds() {
     reg("autosleep", "Idle/disconnect auto-sleep: autosleep on|off",    cmd_autosleep);
     reg("reboot",    "Restart the firmware",                          cmd_reboot);
     reg("heap",      "Free-heap readout",                             cmd_heap);
+    reg("dbg",       "Dump the Bluetooth link log (pairing/reconnect)", cmd_dbg);
 #if defined(CONFIG_BT_HCI_LOG_DEBUG_EN)
     reg("hcilog",    "Dump raw HCI packet ring buffer (debug builds)", cmd_hcilog);
 #endif
