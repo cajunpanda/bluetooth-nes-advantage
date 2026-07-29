@@ -194,9 +194,18 @@ it out reboots the device. Storage is chosen to survive that reboot.
   case. Written at outcomes only: HID up, HID gone, pages exhausted, deep sleep, and immediately
   before the reboot into config mode, which is the boot being asked about. Capped at 8 writes per
   boot, because this partition also holds the BTstack link keys.
-- **What it captures:** stored bonds at boot, each page attempt and its status, ACL, authentication
-  and encryption status, whether the host asked for our link key, whether it stored a new one (it
-  had forgotten the bond and re-paired), HID open and close, and the disconnect reason.
+- **What it captures, reconnect side:** stored bonds at boot, each page attempt and its status,
+  ACL, authentication and encryption status, whether the host asked for our link key, whether it
+  stored a new one (it had forgotten the bond and re-paired), HID open and close, and the
+  disconnect reason.
+- **What it captures, pairing side:** the host's page including its class of device, the role
+  change, its IO capability response with authentication requirements and OOB flag, numeric
+  confirmation, any passkey or OOB request, a legacy PIN request, and the simple-pairing status.
+  That is what identifies an unknown host and says which half of the handshake refused. This
+  device is NoInputNoOutput with no display and no spare keys, so a passkey or OOB request cannot
+  be answered at all; a host requiring MITM either degrades to Just Works or refuses, and only the
+  SSP status says which; a host requesting no bonding keeps no key, so every session starts by
+  pairing again.
 - **Readout:** the `dbg` console command, on the wire or over BLE. Over BLE the config loop paces
   the dump a few lines per drain instead of printing it from the command dispatch, which runs on
   the BT task and would overrun the 3 KB log ring. The config page's **save link log** button runs

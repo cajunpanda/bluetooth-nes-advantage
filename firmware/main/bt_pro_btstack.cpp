@@ -599,9 +599,64 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
         }
         break;
 
+    // An unknown host's pairing attempt is only diagnosable from its own half of the handshake:
+    // that it paged us at all, what it can do (IO capability), and what it demands (MITM, bonding,
+    // OOB). This device is NoInputNoOutput with no display and no spare keys, so a passkey or OOB
+    // request is one nothing here can answer, and a host asking for no bonding will not keep a key.
+    // MITM required is not by itself fatal: against NoInputNoOutput it either degrades to Just
+    // Works or the host refuses, and which one it is only shows in the SSP status that follows.
+    case HCI_EVENT_CONNECTION_REQUEST: {
+        bd_addr_t addr;
+        hci_event_connection_request_get_bd_addr(packet, addr);
+        uint32_t cod = hci_event_connection_request_get_class_of_device(packet);
+        linklog::set_peer(addr);
+        linklog::set_peer_cod(cod);
+        linklog::event(linklog::EV_CONN_REQ, (uint8_t)(cod >> 16), (uint8_t)(cod >> 8), (uint8_t)cod);
+        ESP_LOGI(TAG, "connection request from %s, cod 0x%06lx", bd_addr_to_str(addr),
+                 (unsigned long)cod);
+        break;
+    }
+
+    case HCI_EVENT_ROLE_CHANGE:
+        linklog::event(linklog::EV_ROLE, hci_event_role_change_get_status(packet),
+                       hci_event_role_change_get_role(packet));
+        break;
+
+    case HCI_EVENT_IO_CAPABILITY_REQUEST:
+        linklog::event(linklog::EV_IO_REQ);
+        break;
+
+    case HCI_EVENT_IO_CAPABILITY_RESPONSE: {
+        uint8_t io   = hci_event_io_capability_response_get_io_capability(packet);
+        uint8_t auth = hci_event_io_capability_response_get_authentication_requirements(packet);
+        uint8_t oob  = hci_event_io_capability_response_get_oob_data_present(packet);
+        linklog::event(linklog::EV_IO_RSP, io, auth, oob);
+        if (auth & 0x01) ESP_LOGI(TAG, "host requires MITM (authreq 0x%02x); against "
+                                       "NoInputNoOutput this degrades to Just Works or is refused",
+                                  auth);
+        if ((auth & 0x06) == 0) ESP_LOGW(TAG, "host pairs without bonding: it keeps no link key");
+        break;
+    }
+
+    case HCI_EVENT_USER_PASSKEY_REQUEST:
+        linklog::event(linklog::EV_PASSKEY_REQ);
+        ESP_LOGW(TAG, "host wants a passkey entered; no keypad on this device");
+        break;
+
+    case HCI_EVENT_USER_PASSKEY_NOTIFICATION:
+        linklog::event(linklog::EV_PASSKEY_SHOW);
+        ESP_LOGW(TAG, "host wants a passkey displayed; no display on this device");
+        break;
+
+    case HCI_EVENT_REMOTE_OOB_DATA_REQUEST:
+        linklog::event(linklog::EV_OOB_REQ);
+        ESP_LOGW(TAG, "host wants out-of-band pairing data; none available");
+        break;
+
     case HCI_EVENT_USER_CONFIRMATION_REQUEST:
         // Just-Works pairing: gap_ssp_set_auto_accept(1) answers this for us; log it because it is
         // the first sign the console is actually pairing rather than probing.
+        linklog::event(linklog::EV_USER_CONF);
         ESP_LOGI(TAG, "SSP user confirmation (auto-accepted)");
         break;
 
@@ -637,6 +692,7 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
 
     case HCI_EVENT_PIN_CODE_REQUEST:
         linklog::event(linklog::EV_PIN_REQ);
+        ESP_LOGW(TAG, "host asked for a legacy PIN; this device pairs with SSP only");
         break;
 
     case HCI_EVENT_AUTHENTICATION_COMPLETE:

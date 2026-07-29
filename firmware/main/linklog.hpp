@@ -16,17 +16,25 @@
 // times per boot into the partition that also holds the BTstack link keys.
 namespace linklog {
 
-// Event codes. `a`/`b` carry the HCI status/reason bytes that discriminate one failure from
-// another; keep them raw, decoding belongs in the dump.
+// Event codes. `a`/`b`/`c` carry the HCI status, reason and capability bytes that discriminate one
+// failure from another; keep them raw, decoding belongs in the dump.
 enum Ev : uint8_t {
     EV_BOOT = 1,     // a = esp_reset_reason(), b = transport (0 classic, 1 ble)
     EV_BONDS,        // a = stored link keys found at boot
     EV_PAGE,         // a = attempt number, b = 1 if this is a slow re-page
     EV_PAGE_ST,      // a = hid_device_connect() status
+    EV_CONN_REQ,     // a host paged us: a/b/c = its class of device
     EV_ACL,          // a = HCI connection complete status
+    EV_ROLE,         // a = role change status, b = new role (0 master, 1 slave)
+    EV_IO_REQ,       // the host asked for our IO capability
+    EV_IO_RSP,       // the host's own: a = IO capability, b = auth requirements, c = OOB present
+    EV_USER_CONF,    // numeric-comparison confirmation (auto-accepted)
+    EV_PASSKEY_REQ,  // host wants a passkey typed in; nothing on this device can enter one
+    EV_PASSKEY_SHOW, // host wants a passkey displayed; nothing on this device can show one
+    EV_OOB_REQ,      // host wants out-of-band pairing data
     EV_AUTH,         // a = authentication complete status
     EV_KEY_REQ,      // the host asked us for the stored link key
-    EV_KEY_NEW,      // a = key type; the host stored a NEW key, so it re-paired instead of resuming
+    EV_KEY_NEW,      // a = key type, b = 1 if we already had a bond (the host re-paired anyway)
     EV_PIN_REQ,      // host fell back to legacy PIN pairing
     EV_ENC,          // a = encryption change status, b = enabled
     EV_SSP,          // a = simple pairing complete status
@@ -42,8 +50,9 @@ enum Ev : uint8_t {
 // Validate (or roll) the RTC ring and open the NVS history. Call once per boot, before Bluetooth.
 void init(uint8_t transport);
 
-void event(uint8_t ev, uint8_t a = 0, uint8_t b = 0);
+void event(uint8_t ev, uint8_t a = 0, uint8_t b = 0, uint8_t c = 0);
 void set_peer(const uint8_t addr[6]);
+void set_peer_cod(uint32_t cod);
 
 // Flush this boot's summary to NVS. Call at outcomes worth keeping across a power-off (HID up, HID
 // gone, pages exhausted, sleep, reboot into config mode), not per event: writes are capped per boot

@@ -224,9 +224,9 @@ live device console — the stick's log plus the wired console commands (`help`,
 
 ### Sending a link log for support
 
-If the stick won't reconnect on its own (it works once you pair it, but every session starts with
-pairing again), it keeps a record of what happened. That record is what makes the fault
-diagnosable without your host on hand.
+If the stick won't pair with a host at all, or pairs but never reconnects on its own, it keeps a
+record of what happened. That record is what makes the fault diagnosable without your host on
+hand, which matters most for adapters and docks we have never tested against.
 
 1. Reproduce the fault: turn everything on the way you normally do and let the stick fail to
    connect.
@@ -234,9 +234,10 @@ diagnosable without your host on hand.
 3. Open the config page, connect, and press **save link log** on the **System** tab.
 4. Send the downloaded text file with your description.
 
-The file lists pairing and reconnect attempts from the last few sessions: whether the host asked
-for the stick's stored pairing key, whether it accepted it, and why each attempt ended. It holds
-device addresses and status codes only, no personal data.
+The file lists pairing and reconnect attempts from the last few sessions: which host tried and what
+kind of device it says it is, what it asked for during pairing, whether it asked for the stick's
+stored pairing key, and why each attempt ended. It holds device addresses and status codes only,
+no personal data.
 
 ### Leave config mode
 

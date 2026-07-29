@@ -20,10 +20,12 @@ const char* TAG = "linklog";
 // --- RTC ring (survives esp_restart and deep sleep, not a battery pull) -------------------------
 struct Rec {
     uint32_t ms;
-    uint8_t  ev, a, b, _pad;
+    uint8_t  ev, a, b, c;
 };
-constexpr size_t   kCap   = 96;              // 96 * 8 B = 768 B of the 8 KB RTC slow memory
-constexpr uint32_t kMagic = 0x4C4B4C31;      // "LKL1"
+constexpr size_t   kCap   = 128;             // 128 * 8 B = 1 KB of the 8 KB RTC slow memory
+// Bump on any stored-layout change: init() rolls the ring and drops the history on a mismatch
+// rather than reading old records as new ones.
+constexpr uint32_t kMagic = 0x4C4B4C32;      // "LKL2"
 
 struct Ring {
     uint32_t magic;
@@ -46,13 +48,15 @@ struct BootRec {
     uint8_t  reset;
     uint8_t  bonds;
     uint8_t  peer[6];
+    uint8_t  peer_cod[3];
     uint8_t  flags;
-    uint8_t  conn_st, auth_st, disc_reason;
+    uint8_t  conn_st, auth_st, disc_reason, ssp_st;
+    uint8_t  io_cap, auth_req;               // the peer's, from its IO capability response
     uint8_t  pages_fast, pages_slow, hid_opens;
     uint8_t  _pad;
     uint16_t up_s;
 };
-static_assert(sizeof(BootRec) == 20, "BootRec is a stored layout");
+static_assert(sizeof(BootRec) == 26, "BootRec is a stored layout");
 
 enum : uint8_t {
     F_PAGED  = 1 << 0,
@@ -62,6 +66,7 @@ enum : uint8_t {
     F_GIVEUP = 1 << 4,
     F_NEWKEY = 1 << 5,   // host re-paired instead of resuming: it had forgotten us
     F_KEYREQ = 1 << 6,
+    F_NOBOND = 1 << 7,   // host asked for pairing without bonding: it will not keep a key
 };
 
 constexpr size_t kHist = 8;
@@ -82,9 +87,17 @@ const char* kNvsNamespace = "linklog";
 const char* kKeyHist      = "boots";
 const char* kKeyBootId    = "bootid";
 
-void note(uint8_t ev, uint8_t a, uint8_t b) {
+void note(uint8_t ev, uint8_t a, uint8_t b, uint8_t c) {
+    (void)c;
     switch (ev) {
     case linklog::EV_BONDS:    s_cur.bonds = a; break;
+    case linklog::EV_IO_RSP:   s_cur.io_cap = a; s_cur.auth_req = b;
+                               // Auth requirements: bit 0 is MITM, bits 1-2 are the bonding mode.
+                               // Bonding 0 means the host is pairing for this session only and
+                               // will not store a key, so every session starts with pairing.
+                               if ((b & 0x06) == 0) s_cur.flags |= F_NOBOND;
+                               break;
+    case linklog::EV_SSP:      s_cur.ssp_st = a; break;
     case linklog::EV_PAGE:     s_cur.flags |= F_PAGED;
                                if (b) { if (s_cur.pages_slow < 255) s_cur.pages_slow++; }
                                else   { if (s_cur.pages_fast < 255) s_cur.pages_fast++; }
@@ -108,6 +121,14 @@ const char* ev_name(uint8_t ev) {
     case linklog::EV_BONDS:    return "bonds";
     case linklog::EV_PAGE:     return "page";
     case linklog::EV_PAGE_ST:  return "page-st";
+    case linklog::EV_CONN_REQ: return "conn-req";
+    case linklog::EV_ROLE:     return "role";
+    case linklog::EV_IO_REQ:   return "io-req";
+    case linklog::EV_IO_RSP:   return "io-rsp";
+    case linklog::EV_USER_CONF:return "confirm";
+    case linklog::EV_PASSKEY_REQ:  return "passkey-in";
+    case linklog::EV_PASSKEY_SHOW: return "passkey-out";
+    case linklog::EV_OOB_REQ:  return "oob-req";
     case linklog::EV_ACL:      return "acl";
     case linklog::EV_AUTH:     return "auth";
     case linklog::EV_KEY_REQ:  return "key-req";
@@ -126,6 +147,33 @@ const char* ev_name(uint8_t ev) {
     }
 }
 
+// The peer's class of device: which kind of host is trying, which is most of what identifies an
+// unknown one. Major device class is bits 8-12 of the 24-bit value.
+const char* cod_major(uint32_t cod) {
+    switch ((cod >> 8) & 0x1f) {
+    case 0x01: return "computer";
+    case 0x02: return "phone";
+    case 0x03: return "network";
+    case 0x04: return "audio/video";
+    case 0x05: return "peripheral";
+    case 0x06: return "imaging";
+    case 0x07: return "wearable";
+    case 0x08: return "toy";
+    case 0x09: return "health";
+    default:   return "uncategorized";
+    }
+}
+
+const char* io_cap_name(uint8_t io) {
+    switch (io) {
+    case 0x00: return "DisplayOnly";
+    case 0x01: return "DisplayYesNo";
+    case 0x02: return "KeyboardOnly";
+    case 0x03: return "NoInputNoOutput";
+    default:   return "?";
+    }
+}
+
 // The arguments that matter per event, spelled out so a log read by someone without the source
 // still says what it means.
 void ev_detail(const Rec& r, char* buf, size_t n) {
@@ -134,14 +182,45 @@ void ev_detail(const Rec& r, char* buf, size_t n) {
     case linklog::EV_BONDS:    snprintf(buf, n, "stored=%u", r.a); break;
     case linklog::EV_PAGE:     snprintf(buf, n, "attempt=%u%s", r.a, r.b ? " (slow)" : ""); break;
     case linklog::EV_PAGE_ST:  snprintf(buf, n, "hid_device_connect=0x%02x", r.a); break;
+    case linklog::EV_CONN_REQ: {
+        uint32_t cod = ((uint32_t)r.a << 16) | ((uint32_t)r.b << 8) | r.c;
+        snprintf(buf, n, "host paged us, cod=0x%06lx (%s)", (unsigned long)cod, cod_major(cod));
+        break;
+    }
+    case linklog::EV_ROLE:     snprintf(buf, n, "status=0x%02x role=%s", r.a, r.b ? "slave" : "master"); break;
+    case linklog::EV_IO_RSP:
+        // Both halves of this decide whether pairing can succeed at all. We are NoInputNoOutput
+        // with no display and no keys to spare, so a host that requires MITM has asked for
+        // something this device cannot do, and one that asks for no bonding will not keep a key.
+        snprintf(buf, n, "host io=%s authreq=0x%02x (%s, %s)%s", io_cap_name(r.a), r.b,
+                 (r.b & 0x01) ? "MITM required" : "no MITM",
+                 (r.b & 0x06) == 0 ? "no bonding" : ((r.b & 0x06) == 0x02 ? "dedicated bonding"
+                                                                          : "general bonding"),
+                 r.c ? " OOB present" : "");
+        break;
+    case linklog::EV_PASSKEY_REQ:
+        snprintf(buf, n, "host wants a passkey typed in; this device has no keypad");
+        break;
+    case linklog::EV_PASSKEY_SHOW:
+        snprintf(buf, n, "host wants a passkey displayed; this device has no display");
+        break;
+    case linklog::EV_OOB_REQ:
+        snprintf(buf, n, "host wants out-of-band data; this device offers none");
+        break;
     case linklog::EV_ACL:      snprintf(buf, n, "status=0x%02x", r.a); break;
     case linklog::EV_AUTH:     snprintf(buf, n, "status=0x%02x%s", r.a,
-                                        r.a == 0x06 ? " (key missing: host forgot the bond)" : ""); break;
+                                        r.a == 0x06 ? " (key missing: host forgot the bond)"
+                                      : r.a == 0x05 ? " (authentication failed)" : ""); break;
     case linklog::EV_KEY_NEW:  snprintf(buf, n, "type=%u %s", r.a,
                                         r.b ? "(we had a bond: the host forgot it and re-paired)"
                                             : "(fresh pair)"); break;
+    case linklog::EV_PIN_REQ:  snprintf(buf, n, "legacy PIN pairing; this device only does SSP"); break;
     case linklog::EV_ENC:      snprintf(buf, n, "status=0x%02x enabled=%u", r.a, r.b); break;
-    case linklog::EV_SSP:      snprintf(buf, n, "status=0x%02x", r.a); break;
+    case linklog::EV_SSP:      snprintf(buf, n, "status=0x%02x%s", r.a,
+                                        r.a == 0x00 ? " (paired)"
+                                      : r.a == 0x05 ? " (authentication failed)"
+                                      : r.a == 0x18 ? " (host does not allow pairing)"
+                                      : r.a == 0x37 ? " (host busy pairing something else)" : ""); break;
     case linklog::EV_HID_OPEN: snprintf(buf, n, "%s", r.a ? "host-initiated" : "device-initiated"); break;
     case linklog::EV_HID_FAIL: snprintf(buf, n, "status=0x%02x", r.a); break;
     case linklog::EV_DISC:     snprintf(buf, n, "reason=0x%02x%s", r.a,
@@ -154,21 +233,24 @@ void ev_detail(const Rec& r, char* buf, size_t n) {
 }
 
 void flags_str(uint8_t f, char* buf, size_t n) {
-    snprintf(buf, n, "%s%s%s%s%s%s", (f & F_PAGED) ? "paged " : "", (f & F_ACL) ? "acl " : "",
+    snprintf(buf, n, "%s%s%s%s%s%s%s", (f & F_PAGED) ? "paged " : "", (f & F_ACL) ? "acl " : "",
              (f & F_AUTH) ? "auth " : "", (f & F_HID) ? "hid " : "",
-             (f & F_GIVEUP) ? "gave-up " : "", (f & F_NEWKEY) ? "re-paired " : "");
+             (f & F_GIVEUP) ? "gave-up " : "", (f & F_NEWKEY) ? "re-paired " : "",
+             (f & F_NOBOND) ? "no-bonding " : "");
     if (!buf[0]) snprintf(buf, n, "nothing ");
 }
 
 void hist_line(const BootRec& r, bool current, linklog::Out out) {
-    char fl[64], addr[24];
+    char fl[80], addr[24];
     flags_str(r.flags, fl, sizeof(fl));
     snprintf(addr, sizeof(addr), "%02x:%02x:%02x:%02x:%02x:%02x",
              r.peer[0], r.peer[1], r.peer[2], r.peer[3], r.peer[4], r.peer[5]);
-    out("  boot %-5u%s reset=%u bonds=%u peer=%s pages=%u+%u conn=0x%02x auth=0x%02x disc=0x%02x "
-        "up=%us [%s]\n",
-        r.boot_id, current ? "*" : " ", r.reset, r.bonds, addr, r.pages_fast, r.pages_slow,
-        r.conn_st, r.auth_st, r.disc_reason, r.up_s, fl);
+    uint32_t cod = ((uint32_t)r.peer_cod[0] << 16) | ((uint32_t)r.peer_cod[1] << 8) | r.peer_cod[2];
+    out("  boot %-5u%s reset=%u bonds=%u peer=%s cod=0x%06lx pages=%u+%u conn=0x%02x ssp=0x%02x "
+        "auth=0x%02x disc=0x%02x hostio=%u/0x%02x up=%us [%s]\n",
+        r.boot_id, current ? "*" : " ", r.reset, r.bonds, addr, (unsigned long)cod,
+        r.pages_fast, r.pages_slow, r.conn_st, r.ssp_st, r.auth_st, r.disc_reason,
+        r.io_cap, r.auth_req, r.up_s, fl);
 }
 
 uint32_t up_ms() { return (uint32_t)(esp_timer_get_time() / 1000); }
@@ -215,18 +297,24 @@ void init(uint8_t transport) {
     event(EV_BOOT, s_cur.reset, transport);
 }
 
-void event(uint8_t ev, uint8_t a, uint8_t b) {
+void event(uint8_t ev, uint8_t a, uint8_t b, uint8_t c) {
     uint32_t t = up_ms();
     portENTER_CRITICAL(&s_mux);
     Rec& r = s_ring.rec[s_ring.head];
-    r.ms = t; r.ev = ev; r.a = a; r.b = b; r._pad = 0;
+    r.ms = t; r.ev = ev; r.a = a; r.b = b; r.c = c;
     s_ring.head = (uint16_t)((s_ring.head + 1) % kCap);
     if (s_ring.count < kCap) s_ring.count++;
     portEXIT_CRITICAL(&s_mux);
-    note(ev, a, b);
+    note(ev, a, b, c);
 }
 
 void set_peer(const uint8_t addr[6]) { memcpy(s_cur.peer, addr, 6); }
+
+void set_peer_cod(uint32_t cod) {
+    s_cur.peer_cod[0] = (uint8_t)(cod >> 16);
+    s_cur.peer_cod[1] = (uint8_t)(cod >> 8);
+    s_cur.peer_cod[2] = (uint8_t)cod;
+}
 
 void persist() {
     if (!s_nvs || s_writes >= kMaxWrites) return;
