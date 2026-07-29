@@ -1,7 +1,7 @@
 # Firmware
 
-ESP32-WROOM-32E firmware. Native ESP-IDF v5 with Bluedroid dual-mode Bluetooth: the Switch Pro
-Controller emulation needs BT Classic, which NimBLE cannot do. Built with PlatformIO or plain
+ESP32-WROOM-32E firmware. Native ESP-IDF v5, with two Bluetooth host stacks: BTstack for the
+Classic Switch Pro Controller emulation and Bluedroid for BLE. Built with PlatformIO or plain
 `idf.py`.
 
 ```bash
