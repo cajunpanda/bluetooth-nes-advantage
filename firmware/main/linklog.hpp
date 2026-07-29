@@ -45,6 +45,16 @@ enum Ev : uint8_t {
     EV_SLOW,         // fast kick budget spent, falling back to slow re-page
     EV_GIVEUP,       // a = fast pages, b = slow pages
     EV_CONFIG,       // entered config / OTA mode
+
+    // BLE. EV_BONDS, EV_DISC and the passkey/OOB/confirmation codes above are shared: the bond
+    // count, the HCI disconnect reason and "the host wants input this device does not have" mean
+    // the same thing on either transport.
+    EV_ADV = 64,     // a = advertising start status (0 = advertising)
+    EV_SEC_REQ,      // host asked to start security; auto-accepted
+    EV_LE_AUTH,      // a = 1 on success, b = fail reason, c = auth mode
+    EV_LE_KEYS,      // a = key type the host distributed (LTK present means it bonded)
+    EV_LE_CONN,      // a = HID connect status
+    EV_LE_PARAMS,    // a = status, b = interval in 1.25 ms units, c = slave latency
 };
 
 // Validate (or roll) the RTC ring and open the NVS history. Call once per boot, before Bluetooth.

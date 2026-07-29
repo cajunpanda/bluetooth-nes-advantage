@@ -17,6 +17,7 @@
 // Profiles and directional modes: button-number remaps plus d-pad/axes/both routing.
 
 #include "bt_transport.hpp"
+#include "linklog.hpp"
 #include "settings.hpp"
 
 #include <cstring>
@@ -261,6 +262,7 @@ void ble_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
         esp_ble_gap_start_advertising(&s_adv_params);
         break;
     case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+        linklog::event(linklog::EV_ADV, param->adv_start_cmpl.status);
         if (param->adv_start_cmpl.status == ESP_BT_STATUS_SUCCESS) {
             ESP_LOGI(TAG, "advertising as \"NES Advantage\"");
             s_link = bt::LINK_ADVERTISING;
@@ -269,11 +271,45 @@ void ble_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
         }
         break;
     case ESP_GAP_BLE_SEC_REQ_EVT:
+        linklog::event(linklog::EV_SEC_REQ);
+        linklog::set_peer(param->ble_security.ble_req.bd_addr);
         esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);   // just works
         break;
+
+    // A host that refuses to pair says why here, and nowhere else. The requests below are for
+    // input this device does not have (no keypad, no display, no OOB channel), so they are
+    // recorded rather than answered: an unanswered one is itself the finding.
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+        linklog::event(linklog::EV_PASSKEY_REQ);
+        ESP_LOGW(TAG, "host wants a passkey entered; no keypad on this device");
+        break;
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+        linklog::event(linklog::EV_PASSKEY_SHOW);
+        ESP_LOGW(TAG, "host wants a passkey displayed; no display on this device");
+        break;
+    case ESP_GAP_BLE_NC_REQ_EVT:
+        linklog::event(linklog::EV_USER_CONF);
+        ESP_LOGW(TAG, "host wants numeric comparison; no display on this device");
+        break;
+    case ESP_GAP_BLE_OOB_REQ_EVT:
+        linklog::event(linklog::EV_OOB_REQ);
+        ESP_LOGW(TAG, "host wants out-of-band pairing data; none available");
+        break;
+    case ESP_GAP_BLE_KEY_EVT:
+        // Which keys the host distributed. A peer LTK is the bond; without one the link is
+        // encrypted for this session only and the next one pairs again.
+        linklog::event(linklog::EV_LE_KEYS, (uint8_t)param->ble_security.ble_key.key_type);
+        break;
+
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
         bool ok = param->ble_security.auth_cmpl.success;
-        ESP_LOGI(TAG, "BLE auth %s", ok ? "OK" : "FAILED");
+        linklog::set_peer(param->ble_security.auth_cmpl.bd_addr);
+        linklog::event(linklog::EV_LE_AUTH, ok ? 1 : 0,
+                       (uint8_t)param->ble_security.auth_cmpl.fail_reason,
+                       (uint8_t)param->ble_security.auth_cmpl.auth_mode);
+        linklog::persist();
+        if (ok) ESP_LOGI(TAG, "BLE auth OK (mode 0x%02x)", param->ble_security.auth_cmpl.auth_mode);
+        else    ESP_LOGW(TAG, "BLE auth FAILED, reason %d", param->ble_security.auth_cmpl.fail_reason);
         if (ok) {
             // Actively ask the host for the fastest practical connection interval. The adv data only
             // carries a hint (Peripheral Preferred Connection Parameters), which many centrals
@@ -305,6 +341,11 @@ void ble_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
         // The actual negotiated link timing, the dominant BLE input-latency term. (interval in
         // 1.25 ms units; an interval of N means a report waits up to N*1.25 ms for its TX slot.)
         auto& u = param->update_conn_params;
+        // A host that refuses the pinned 7.5 ms / latency 4 request and then drops the link looks
+        // like a pairing fault from the outside, so keep what it actually granted.
+        linklog::event(linklog::EV_LE_PARAMS, (uint8_t)u.status,
+                       (uint8_t)(u.conn_int > 255 ? 255 : u.conn_int),
+                       (uint8_t)(u.latency > 255 ? 255 : u.latency));
         ESP_LOGI(TAG,
                  "conn params updated: interval=%u (=%u.%02u ms) latency=%u timeout=%u ms status=%d",
                  u.conn_int, (unsigned)(u.conn_int * 125 / 100), (unsigned)((u.conn_int * 125) % 100),
@@ -328,6 +369,8 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
         esp_ble_gap_config_adv_data(&s_adv_data);
         break;
     case ESP_HIDD_CONNECT_EVENT:
+        linklog::event(linklog::EV_LE_CONN, (uint8_t)p->connect.status);
+        linklog::persist();
         ESP_LOGI(TAG, "HIDD CONNECT (status=%d)", p->connect.status);
         if (p->connect.status == ESP_OK) s_link = bt::LINK_CONNECTED;
         break;
@@ -336,6 +379,8 @@ void hidd_cb(void*, esp_event_base_t, int32_t id, void* event_data) {
                  p->protocol_mode.protocol_mode ? "REPORT" : "BOOT");
         break;
     case ESP_HIDD_DISCONNECT_EVENT:
+        linklog::event(linklog::EV_DISC, (uint8_t)p->disconnect.reason);
+        linklog::persist();
         ESP_LOGW(TAG, "HIDD DISCONNECT (reason=%d) -> re-advertise", p->disconnect.reason);
         s_link = bt::LINK_ADVERTISING;
         esp_ble_gap_start_advertising(&s_adv_params);
@@ -364,6 +409,11 @@ void ble_init() {
     esp_bluedroid_config_t bd_cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_bluedroid_init_with_cfg(&bd_cfg));
     ESP_ERROR_CHECK(esp_bluedroid_enable());
+
+    // The BLE half of "stored bonds at boot": whether this boot is a reconnect or a fresh pair.
+    int bonds = esp_ble_get_bond_device_num();
+    linklog::event(linklog::EV_BONDS, (uint8_t)(bonds > 255 ? 255 : bonds));
+    ESP_LOGI(TAG, "stored BLE bonds at boot: %d", bonds);
 
     ESP_ERROR_CHECK(esp_ble_gap_register_callback(ble_gap_cb));
 

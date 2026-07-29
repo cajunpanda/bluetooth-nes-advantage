@@ -206,6 +206,15 @@ it out reboots the device. Storage is chosen to survive that reboot.
   be answered at all; a host requiring MITM either degrades to Just Works or refuses, and only the
   SSP status says which; a host requesting no bonding keeps no key, so every session starts by
   pairing again.
+- **What it captures on BLE:** stored bonds at boot, whether advertising actually started, the HID
+  connect, which keys the host distributed (a peer LTK is the bond, and without one the link is
+  encrypted for this session only), the authentication result with Bluedroid's failure reason, the
+  granted connection parameters, and the disconnect reason. The passkey, numeric-comparison and
+  OOB requests are recorded but not answered: this device sets `ESP_IO_CAP_NONE`, so a host asking
+  for any of them wants input that does not exist here, and the unanswered request is the finding.
+  Both transports share the bond count, disconnect reason and those input-request codes; the rest
+  differ, so the per-boot summary prints a `classic` or `ble` column set rather than one layout
+  that is half zeroes either way.
 - **Readout:** the `dbg` console command, on the wire or over BLE. Over BLE the config loop paces
   the dump a few lines per drain instead of printing it from the command dispatch, which runs on
   the BT task and would overrun the 3 KB log ring. The config page's **save link log** button runs

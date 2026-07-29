@@ -53,7 +53,7 @@ struct BootRec {
     uint8_t  conn_st, auth_st, disc_reason, ssp_st;
     uint8_t  io_cap, auth_req;               // the peer's, from its IO capability response
     uint8_t  pages_fast, pages_slow, hid_opens;
-    uint8_t  _pad;
+    uint8_t  transport;                      // 0 classic, 1 ble; was padding, so old records read 0
     uint16_t up_s;
 };
 static_assert(sizeof(BootRec) == 26, "BootRec is a stored layout");
@@ -78,6 +78,7 @@ struct Hist {
 
 Hist        s_hist;
 BootRec     s_cur;                 // this boot, mirrored into the history at persist()
+bool         s_le_bonded = false;  // a peer LTK arrived this boot, so the host actually bonded
 nvs_handle_t s_nvs   = 0;
 int          s_slot  = -1;         // history slot this boot owns, claimed on first persist()
 int          s_writes = 0;
@@ -111,6 +112,21 @@ void note(uint8_t ev, uint8_t a, uint8_t b, uint8_t c) {
                                break;
     case linklog::EV_DISC:     s_cur.disc_reason = a; break;
     case linklog::EV_GIVEUP:   s_cur.flags |= F_GIVEUP; break;
+    case linklog::EV_LE_KEYS:  if (a & 0x01) s_le_bonded = true; break;   // peer LTK: it bonded
+    case linklog::EV_LE_AUTH:  s_cur.auth_st = a ? 0 : b;
+                               if (a) {
+                                   s_cur.flags |= F_AUTH;
+                                   // Encrypted but no peer LTK distributed: this session only, so
+                                   // the next one starts by pairing again.
+                                   if (!s_le_bonded) s_cur.flags |= F_NOBOND;
+                               }
+                               break;
+    case linklog::EV_LE_CONN:  s_cur.conn_st = a;
+                               if (a == 0) {
+                                   s_cur.flags |= (F_ACL | F_HID);
+                                   if (s_cur.hid_opens < 255) s_cur.hid_opens++;
+                               }
+                               break;
     default: break;
     }
 }
@@ -143,6 +159,12 @@ const char* ev_name(uint8_t ev) {
     case linklog::EV_SLOW:     return "slow-page";
     case linklog::EV_GIVEUP:   return "give-up";
     case linklog::EV_CONFIG:   return "config";
+    case linklog::EV_ADV:      return "adv";
+    case linklog::EV_SEC_REQ:  return "sec-req";
+    case linklog::EV_LE_AUTH:  return "le-auth";
+    case linklog::EV_LE_KEYS:  return "le-keys";
+    case linklog::EV_LE_CONN:  return "le-conn";
+    case linklog::EV_LE_PARAMS:return "le-params";
     default:                   return "?";
     }
 }
@@ -161,6 +183,23 @@ const char* cod_major(uint32_t cod) {
     case 0x08: return "toy";
     case 0x09: return "health";
     default:   return "uncategorized";
+    }
+}
+
+// Bluedroid's BLE pairing failure reasons start at 78: the SMP codes from the core spec, then its
+// own internal ones. Only the reasons that change what to do about it are named.
+const char* le_fail_reason(uint8_t r) {
+    switch (r) {
+    case 78:  return " (passkey entry failed)";
+    case 79:  return " (OOB data not available)";
+    case 80:  return " (host's authentication requirements cannot be met)";
+    case 82:  return " (host does not support pairing)";
+    case 83:  return " (encryption key size)";
+    case 89:  return " (numeric comparison failed)";
+    case 93:  return " (unknown IO capability, no association model)";
+    case 99:  return " (timed out waiting for the host's next SMP command)";
+    case 102: return " (connection dropped mid-pairing)";
+    default:  return "";
     }
 }
 
@@ -228,6 +267,20 @@ void ev_detail(const Rec& r, char* buf, size_t n) {
                                       : r.a == 0x13 ? " (remote user ended it)"
                                       : r.a == 0x06 ? " (PIN or key missing)" : ""); break;
     case linklog::EV_GIVEUP:   snprintf(buf, n, "pages=%u fast + %u slow", r.a, r.b); break;
+    case linklog::EV_ADV:      snprintf(buf, n, "%s", r.a == 0 ? "advertising"
+                                                               : "advertising did not start"); break;
+    case linklog::EV_LE_AUTH:  snprintf(buf, n, "%s authmode=0x%02x%s", r.a ? "paired" : "FAILED",
+                                        r.c, r.a ? "" : le_fail_reason(r.b)); break;
+    case linklog::EV_LE_KEYS:
+        // The peer encryption key is the bond. Without it the host is encrypting this session only
+        // and will pair again next time.
+        snprintf(buf, n, "type=0x%02x%s", r.a, (r.a & 0x01) ? " (peer LTK stored: bonded)" : "");
+        break;
+    case linklog::EV_LE_CONN:  snprintf(buf, n, "status=%u", r.a); break;
+    case linklog::EV_LE_PARAMS:
+        snprintf(buf, n, "status=%u interval=%u.%02u ms latency=%u", r.a,
+                 (unsigned)(r.b * 125 / 100), (unsigned)((r.b * 125) % 100), r.c);
+        break;
     default:                   buf[0] = '\0'; break;
     }
 }
@@ -245,9 +298,18 @@ void hist_line(const BootRec& r, bool current, linklog::Out out) {
     flags_str(r.flags, fl, sizeof(fl));
     snprintf(addr, sizeof(addr), "%02x:%02x:%02x:%02x:%02x:%02x",
              r.peer[0], r.peer[1], r.peer[2], r.peer[3], r.peer[4], r.peer[5]);
+    // Two transports, two sets of fields worth printing; a shared column layout would be mostly
+    // zeroes either way.
+    if (r.transport) {
+        out("  boot %-5u%s ble     reset=%u bonds=%u peer=%s conn=%u auth=0x%02x disc=0x%02x "
+            "up=%us [%s]\n",
+            r.boot_id, current ? "*" : " ", r.reset, r.bonds, addr, r.conn_st, r.auth_st,
+            r.disc_reason, r.up_s, fl);
+        return;
+    }
     uint32_t cod = ((uint32_t)r.peer_cod[0] << 16) | ((uint32_t)r.peer_cod[1] << 8) | r.peer_cod[2];
-    out("  boot %-5u%s reset=%u bonds=%u peer=%s cod=0x%06lx pages=%u+%u conn=0x%02x ssp=0x%02x "
-        "auth=0x%02x disc=0x%02x hostio=%u/0x%02x up=%us [%s]\n",
+    out("  boot %-5u%s classic reset=%u bonds=%u peer=%s cod=0x%06lx pages=%u+%u conn=0x%02x "
+        "ssp=0x%02x auth=0x%02x disc=0x%02x hostio=%u/0x%02x up=%us [%s]\n",
         r.boot_id, current ? "*" : " ", r.reset, r.bonds, addr, (unsigned long)cod,
         r.pages_fast, r.pages_slow, r.conn_st, r.ssp_st, r.auth_st, r.disc_reason,
         r.io_cap, r.auth_req, r.up_s, fl);
@@ -289,8 +351,10 @@ void init(uint8_t transport) {
     s_ring.boot_id = (uint16_t)boot_id;
 
     memset(&s_cur, 0, sizeof(s_cur));
-    s_cur.boot_id = (uint16_t)boot_id;
-    s_cur.reset   = (uint8_t)esp_reset_reason();
+    s_cur.boot_id   = (uint16_t)boot_id;
+    s_cur.reset     = (uint8_t)esp_reset_reason();
+    s_cur.transport = transport;
+    s_le_bonded = false;
     s_slot   = -1;
     s_writes = 0;
 
