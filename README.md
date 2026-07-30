@@ -7,6 +7,9 @@ and it charges through the original cable hole.
 
 ![NES Advantage with the Bluetooth board](docs/images/hero-2.jpg)
 
+**[Watch the overview and how-to video](https://youtu.be/xjbFiXHXB24)** for a tour of the mod and
+everything below in use.
+
 ## Features
 
 - Direct Nintendo Switch pairing (Switch Pro Controller emulation over BT Classic)
