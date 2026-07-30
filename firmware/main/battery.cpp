@@ -2,6 +2,7 @@
 // Copyright 2026 Aaron Perkins
 
 #include "battery.hpp"
+#include "board.hpp"
 #include "board_config.h"
 
 #include "driver/gpio.h"
@@ -121,11 +122,13 @@ void battery::init() {
     gpio_config(&en);
     gpio_set_level((gpio_num_t)BATT_EN, 0);
 
-    // TP4056 status: open-drain, active-low, so pull up and invert on read.
+    // TP4056 status: open-drain, active-low, so pull up and invert on read. R7/R8 already pull both
+    // lines up; the internal pulls just keep the pin defined if a board is missing them.
+    // CHG_STAT is revision-dependent, so take it from board::, which must have probed by now.
     gpio_config_t st = {};
     st.mode = GPIO_MODE_INPUT;
     st.pull_up_en = GPIO_PULLUP_ENABLE;
-    st.pin_bit_mask = (1ULL << CHG_STAT) | (1ULL << STBY_STAT);
+    st.pin_bit_mask = (1ULL << board::chg_stat_gpio()) | (1ULL << STBY_STAT);
     gpio_config(&st);
 
     adc_oneshot_unit_init_cfg_t unit = {};
@@ -156,6 +159,6 @@ void battery::init() {
 
 bool    battery::present()        { return s_present; }
 uint8_t battery::level_percent()  { return s_pct; }
-bool    battery::is_charging()    { return gpio_get_level((gpio_num_t)CHG_STAT)  == 0; }
+bool    battery::is_charging()    { return gpio_get_level(board::chg_stat_gpio()) == 0; }
 bool    battery::is_full()        { return gpio_get_level((gpio_num_t)STBY_STAT) == 0; }
 bool    battery::external_power() { return is_charging() || is_full(); }

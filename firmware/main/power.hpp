@@ -14,7 +14,11 @@
 namespace power {
 
 void ulp_load();     // config RTC GPIOs, build + load + run the ULP-FSM 4021 poll, set wake period
-void deep_sleep();   // arm ULP wakeup and enter deep sleep (does not return)
+
+// Arm the wake sources and enter deep sleep (does not return). Always arms the ULP button wake;
+// on boards whose CHG_STAT is RTC-capable it also arms an ext1 wake on charger insert, but only
+// when the charger is out (see the comment at the call site for why that guard is load-bearing).
+void deep_sleep();
 
 // Release the RTC-GPIO holds the ULP put on the NES pins, so the normal gpio driver (NESController)
 // can drive/read them again after a wake. Call once on a full wake before NESController::begin().

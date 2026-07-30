@@ -22,6 +22,7 @@
 #include "nvs_flash.h"
 
 #include "board_config.h"
+#include "board.hpp"
 #include "settings.hpp"
 #include "battery.hpp"
 #include "power.hpp"
@@ -125,6 +126,22 @@ static bool handle_wake() {
     if (!s_sleeping) return true;      // cold boot / normal start
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
     bool start_held = power::button_pressed_in_last_read(NESController::BUTTON_START);
+
+    // Charger inserted while asleep (PCB 2.1+, where CHG_STAT is on an RTC pin). Boot fully so the
+    // charge indication runs: external_power() then holds the device awake, check_timers() keeps
+    // the idle timers reset, and the green LED blinks while charging and goes solid at full. Once
+    // the charger comes out the normal idle timeout takes over and puts it back to sleep.
+    //
+    // Keyed on the pin as well as the wake cause: the ULP and ext1 are both armed, so a button
+    // change and a charger insert can land on the same wake, and esp_sleep_get_wakeup_cause()
+    // only reports one of the two. Reading CHG_STAT directly cannot miss it.
+    if (cause == ESP_SLEEP_WAKEUP_EXT1 || (board::chg_wake_capable() && battery::is_charging())) {
+        ESP_LOGI(TAG, "charger inserted -> powering on for charge indication");
+        s_sleeping = false;
+        power::release_after_wake();
+        return true;
+    }
+
     if (cause == ESP_SLEEP_WAKEUP_ULP && start_held) {
         ESP_LOGI(TAG, "ULP wake + Start held -> powering on");
         s_sleeping = false;
@@ -470,6 +487,10 @@ extern "C" void app_main(void) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ESP_ERROR_CHECK(nvs_flash_init());
     }
+
+    // Before handle_wake(): the sleep path needs to know whether this board can wake on the
+    // charger, and before battery::init(), which configures the pin the probe resolves.
+    board::init();
 
     if (!handle_wake()) return;          // went back to sleep (does not return in practice)
 

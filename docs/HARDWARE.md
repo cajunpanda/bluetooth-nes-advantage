@@ -87,7 +87,7 @@ Once the board is built and flashed, install it into the controller: see [INSTAL
 | GPIO19 | LED-R | +3.3V to R1 to D4 to GPIO19 | active-low |
 | GPIO21 | LED-G | +3.3V to R2 to D5 to GPIO21 | active-low |
 | GPIO22 | LED-B | +3.3V to R3 to D6 to GPIO22 | active-low |
-| GPIO23 | CHG_STAT | TP4056 CHRG; R7 pull-up | open-drain status in |
+| GPIO23 (2.0) / GPIO4 (2.1) | CHG_STAT | TP4056 CHRG; R7 pull-up | open-drain status in |
 | GPIO18 | STBY_STAT | TP4056 STDBY; R8 pull-up | open-drain status in |
 | GPIO1 (U0TXD) | UART_TX | J4 pin 3 | to cable RXD |
 | GPIO3 (U0RXD) | UART_RX | J4 pin 4 | from cable TXD |
@@ -100,6 +100,12 @@ Module power decoupling: C1 (22 uF) + C2 (100 nF) at the 3V3 pin. GPIO12 (MTDI s
 driven. The DATA lines use the ESP32 internal pulls (opposite polarity awake vs asleep), so R14/R15
 stay DNP.
 
+CHG_STAT is the one pin that differs between board revisions. PCB 2.0 puts it on GPIO23, which is
+not RTC-capable, so a sleeping stick cannot notice a charger being plugged in and shows nothing
+until something else wakes it. PCB 2.1 moves it to GPIO4 (RTC), so an ext1 wake lights the charge
+LED on insert. One firmware build covers both: it probes the two candidate pins at boot and uses
+whichever one R7 actually pulls up, so no build flag or board-ID pin is needed.
+
 ### TP4056 charger (U2)
 
 | Pin | Name | Net / connection |
@@ -110,7 +116,7 @@ stay DNP.
 | 4 | VCC (VIN) | +5V; C4 (22 uF) decouple. VIN range 4 to 8 V |
 | 5 | BAT | +BATT; C5 (22 uF) decouple |
 | 6 | STDBY | STBY_STAT to U1 GPIO18; R8 pull-up to +3.3V |
-| 7 | CHRG | CHG_STAT to U1 GPIO23; R7 pull-up to +3.3V |
+| 7 | CHRG | CHG_STAT to U1 GPIO23 (PCB 2.0) or GPIO4 (PCB 2.1); R7 pull-up to +3.3V |
 | 8 | CE | +5V (charger enable) |
 | EP | EPAD | GND |
 

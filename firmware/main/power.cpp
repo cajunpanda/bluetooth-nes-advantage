@@ -22,6 +22,8 @@
 #include "soc/rtc_io_channel.h" // RTCIO_GPIOxx_CHANNEL
 #include "ulp.h"                // FSM macros + ulp_process_macros_and_load / ulp_run / period
 #include "board_config.h"       // NES_LATCH / NES_CLK_* / NES_DATA_*
+#include "board.hpp"            // CHG_STAT pin + whether this board can wake on it
+#include "battery.hpp"          // is_charging(), to avoid arming a level wake that is already true
 
 namespace power {
 
@@ -145,6 +147,17 @@ void release_after_wake() {
 
 void deep_sleep() {
     ESP_ERROR_CHECK(esp_sleep_enable_ulp_wakeup());
+
+    // Wake on charger insert as well, where the board can (PCB 2.1 put CHG_STAT on an RTC pin).
+    // ext1 is level-triggered, not edge-triggered: arming it while CHRG is already low wakes the
+    // SoC the instant it sleeps, and it would spin like that for the whole charge. So only arm it
+    // with the charger out, which is exactly when there is an insert left to detect. R7 holds the
+    // pin up with the RTC domain powered down, so this costs nothing in standby.
+    if (board::chg_wake_capable() && !battery::is_charging()) {
+        ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup(1ULL << board::chg_stat_gpio(),
+                                                     ESP_EXT1_WAKEUP_ALL_LOW));
+    }
+
     esp_deep_sleep_start();   // does not return; the SoC reboots on wake
 }
 

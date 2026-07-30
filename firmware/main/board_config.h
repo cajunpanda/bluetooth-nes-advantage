@@ -32,6 +32,12 @@
 #define LED_GREEN       GPIO_NUM_21
 #define LED_BLUE        GPIO_NUM_22
 
-// Charger status pins (open-drain, active-low; INPUT_PULLUP)
-#define CHG_STAT        GPIO_NUM_23   // charging
-#define STBY_STAT       GPIO_NUM_18   // standby / full
+// Charger status pins (TP4056, open-drain active-low; R7/R8 pull them up to +3.3V on the board)
+//
+// CHG_STAT is the one pin that moved between board revisions: PCB 2.1 put it on an RTC-capable GPIO
+// so the charger can wake the SoC out of deep sleep, which GPIO23 cannot do. Both candidates are
+// listed here and the wired one is resolved at runtime, so a single build runs on either board.
+// Use board::chg_stat_gpio(), never these constants directly.
+#define CHG_STAT_REV20  GPIO_NUM_23   // charging, PCB 2.0: not RTC-capable, so no charger wake
+#define CHG_STAT_REV21  GPIO_NUM_4    // charging, PCB 2.1: RTC, ext1 wakes on charger insert
+#define STBY_STAT       GPIO_NUM_18   // standby / full, both revisions

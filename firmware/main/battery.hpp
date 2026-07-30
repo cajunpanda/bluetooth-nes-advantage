@@ -10,7 +10,9 @@
 // (BATT_EN, GPIO13) so the divider only draws current while sampling. The sense node is filtered by
 // C8 (100 nF); with a ~500k source impedance that is a ~50 ms RC, so a settled read asserts BATT_EN,
 // waits, oversamples, then releases. State of charge is a coarse 1S-LiPo curve with EMA smoothing.
-// Charge state comes from the TP4056 CHG (GPIO23) and STBY (GPIO18) open-drain status pins.
+// Charge state comes from the TP4056 CHG and STBY (GPIO18) open-drain status pins. CHG moved
+// between board revisions, so it is read through board::chg_stat_gpio(); board::init() must have
+// run before battery::init().
 //
 // present() is false until the first settled read; the integration layer keys off present() /
 // external_power() so the rest of the firmware behaves correctly with or without a cell installed.

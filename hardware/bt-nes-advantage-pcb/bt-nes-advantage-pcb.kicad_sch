@@ -4509,10 +4509,6 @@
 		(uuid "94c35279-1106-482a-8b6f-674d2bdb6857")
 	)
 	(no_connect
-		(at 166.37 62.23)
-		(uuid "d4974709-8158-42a9-bd0f-15d75863bcdc")
-	)
-	(no_connect
 		(at 166.37 74.93)
 		(uuid "fee5edc3-bc49-4a36-933f-4551b732ffe3")
 	)
@@ -6214,30 +6210,6 @@
 			)
 		)
 	)
-	(global_label "CHG_STAT"
-		(shape input)
-		(at 166.37 92.71 0)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "3a08ad18-4659-4475-a355-52f81fabb670")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 175.6447 92.71 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-	)
 	(global_label "+BATT"
 		(shape output)
 		(at 240.03 110.49 180)
@@ -7142,7 +7114,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-0710KL"
+		(property "MPN" "0603WAF1002T5E"
 			(at 180.34 48.26 0)
 			(hide yes)
 			(show_name no)
@@ -7151,6 +7123,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C25804" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -7244,6 +7232,30 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "BOM Comments" "Hand-populated from local stock; excluded from JLCPCB assembly. Through-hole." (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer_Name" "JST" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C173752" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
@@ -7403,7 +7415,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-07200RL"
+		(property "MPN" "0603WAF2000T5E"
 			(at 179.07 143.51 0)
 			(hide yes)
 			(show_name no)
@@ -7412,6 +7424,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C8218" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
@@ -7516,6 +7544,22 @@
 				)
 			)
 		)
+		(property "Manufacturer_Name" "Lite-On" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C125103" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "e15b0b29-af27-451d-924f-4b8b1d752441")
 		)
@@ -7595,7 +7639,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-07200RL"
+		(property "MPN" "0603WAF2000T5E"
 			(at 179.07 137.16 0)
 			(hide yes)
 			(show_name no)
@@ -7604,6 +7648,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C8218" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
@@ -7685,7 +7745,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-071K5L"
+		(property "MPN" "0603WAF1501T5E"
 			(at 71.12 49.53 0)
 			(hide yes)
 			(show_name no)
@@ -7694,6 +7754,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C22843" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -7775,7 +7851,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM21BR61A226ME44L"
+		(property "MPN" "CL21A226MAQNNNE"
 			(at 231.14 93.98 0)
 			(hide yes)
 			(show_name no)
@@ -7784,6 +7860,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "Samsung Electro-Mechanics" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C45783" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -7954,6 +8046,22 @@
 				)
 			)
 		)
+		(property "Manufacturer_Name" "Texas Instruments" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C1518762" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "0f642096-fa3d-45eb-bdc8-4bf8ef43028a")
 		)
@@ -8060,7 +8168,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603FR-0716K2L"
+		(property "MPN" "0603WAF1622T5E"
 			(at 123.19 168.91 0)
 			(hide yes)
 			(show_name no)
@@ -8069,6 +8177,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C22885" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -8305,7 +8429,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-07200RL"
+		(property "MPN" "0603WAF2000T5E"
 			(at 179.07 130.81 0)
 			(hide yes)
 			(show_name no)
@@ -8314,6 +8438,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C8218" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
@@ -8529,6 +8669,14 @@
 				(justify bottom)
 			)
 		)
+		(property "BOM Comments" "Hand-populated from local stock; excluded from JLCPCB assembly. LCSC C3094068 is 0 stock / 1200 order multiple, so not orderable there." (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "3"
 			(uuid "7ed38c90-d75a-4544-bfdc-05a6804acaef")
 		)
@@ -8611,7 +8759,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-071ML"
+		(property "MPN" "0603WAF1004T5E"
 			(at 30.48 170.18 0)
 			(hide yes)
 			(show_name no)
@@ -8620,6 +8768,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C22935" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -8701,7 +8865,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-071ML"
+		(property "MPN" "0603WAF1004T5E"
 			(at 66.04 92.71 0)
 			(hide yes)
 			(show_name no)
@@ -8710,6 +8874,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C22935" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -8791,7 +8971,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-0710KL"
+		(property "MPN" "0603WAF1002T5E"
 			(at 25.4 55.88 0)
 			(hide yes)
 			(show_name no)
@@ -8800,6 +8980,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C25804" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -9037,7 +9233,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL10B104KB8NNNC"
+		(property "MPN" "CC0603KRX7R9BB104"
 			(at 124.46 60.96 0)
 			(hide yes)
 			(show_name no)
@@ -9046,6 +9242,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "YAGEO" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C14663" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -9127,7 +9339,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-071ML"
+		(property "MPN" "0603WAF1004T5E"
 			(at 86.36 92.71 0)
 			(hide yes)
 			(show_name no)
@@ -9136,6 +9348,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C22935" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -9217,7 +9445,7 @@
 				)
 			)
 		)
-		(property "MPN" "2N7002LT1G"
+		(property "MPN" "2N7002"
 			(at 46.99 93.98 0)
 			(hide yes)
 			(show_name no)
@@ -9226,6 +9454,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "JSCJ" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C8545" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -9400,6 +9644,22 @@
 				)
 			)
 		)
+		(property "Manufacturer_Name" "Alpha & Omega Semiconductor" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C15127" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "3c54f11f-d828-4513-af2a-f0ba90dbad94")
 		)
@@ -9494,6 +9754,30 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "BOM Comments" "Hand-populated from local stock; excluded from JLCPCB assembly. Through-hole." (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer_Name" "JST" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C157914" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "3"
@@ -9747,7 +10031,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-0710KL"
+		(property "MPN" "0603WAF1002T5E"
 			(at 124.46 41.91 0)
 			(hide yes)
 			(show_name no)
@@ -9756,6 +10040,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C25804" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -9837,7 +10137,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-0710KL"
+		(property "MPN" "0603WAF1002T5E"
 			(at 30.48 143.51 0)
 			(hide yes)
 			(show_name no)
@@ -9846,6 +10146,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C25804" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -9927,7 +10243,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL10B104KB8NNNC"
+		(property "MPN" "CC0603KRX7R9BB104"
 			(at 146.05 35.56 0)
 			(hide yes)
 			(show_name no)
@@ -9936,6 +10252,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "YAGEO" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C14663" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -10017,7 +10349,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM21BR61A226ME44L"
+		(property "MPN" "CL21A226MAQNNNE"
 			(at 139.7 35.56 0)
 			(hide yes)
 			(show_name no)
@@ -10026,6 +10358,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "Samsung Electro-Mechanics" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C45783" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -10184,7 +10532,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM21BR61A226ME44L"
+		(property "MPN" "CL21A226MAQNNNE"
 			(at 40.64 25.4 0)
 			(hide yes)
 			(show_name no)
@@ -10193,6 +10541,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "Samsung Electro-Mechanics" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C45783" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -10295,6 +10659,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "Lite-On" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C157741" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "2"
@@ -10455,7 +10835,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL10B104KB8NNNC"
+		(property "MPN" "CC0603KRX7R9BB104"
 			(at 80.01 109.22 0)
 			(hide yes)
 			(show_name no)
@@ -10464,6 +10844,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "YAGEO" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C14663" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -10701,7 +11097,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL10B104KB8NNNC"
+		(property "MPN" "CC0603KRX7R9BB104"
 			(at 237.49 93.98 0)
 			(hide yes)
 			(show_name no)
@@ -10710,6 +11106,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "YAGEO" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C14663" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -10791,7 +11203,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM21BR61A226ME44L"
+		(property "MPN" "CL21A226MAQNNNE"
 			(at 123.19 149.86 0)
 			(hide yes)
 			(show_name no)
@@ -10800,6 +11212,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "Samsung Electro-Mechanics" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C45783" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -11207,7 +11635,7 @@
 				)
 			)
 		)
-		(property "MPN" "RC0603JR-0710KL"
+		(property "MPN" "0603WAF1002T5E"
 			(at 40.64 55.88 0)
 			(hide yes)
 			(show_name no)
@@ -11216,6 +11644,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "UNI-ROYAL" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C25804" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -11476,6 +11920,22 @@
 				)
 			)
 		)
+		(property "Manufacturer_Name" "Lite-On" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C125102" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "c01be79d-5b74-4dde-b6d5-01b444b5f4fa")
 		)
@@ -11564,6 +12024,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "Murata" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C237554" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -11811,6 +12287,22 @@
 				)
 			)
 		)
+		(property "Manufacturer_Name" "MDD" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C2480" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "d3081f86-b699-461c-953d-a3f2d33604ef")
 		)
@@ -11890,7 +12382,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM21BR61A226ME44L"
+		(property "MPN" "CL21A226MAQNNNE"
 			(at 68.58 26.67 0)
 			(hide yes)
 			(show_name no)
@@ -11899,6 +12391,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "Samsung Electro-Mechanics" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C45783" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -12067,6 +12575,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "TOP POWER ASIC" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C16581" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -12262,6 +12786,22 @@
 				)
 			)
 		)
+		(property "Manufacturer_Name" "Espressif Systems" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C701341" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "36"
 			(uuid "0a3f842f-2d1c-478d-86ad-97fbae433572")
 		)
@@ -12443,7 +12983,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM21BR61A226ME44L"
+		(property "MPN" "CL21A226MAQNNNE"
 			(at 86.36 134.62 0)
 			(hide yes)
 			(show_name no)
@@ -12452,6 +12992,22 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "Manufacturer_Name" "Samsung Electro-Mechanics" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C45783" (at 0 0 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -12468,6 +13024,22 @@
 				)
 			)
 		)
+	)
+	(global_label "CHG_STAT"
+		(shape input)
+		(at 166.37 62.23 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "dc73a691-2f7d-4469-af1f-6e6661e7aeac")
+	)
+	(no_connect
+		(at 166.37 92.71)
+		(uuid "244fa35b-1615-45a1-b140-164ac29ec1c9")
 	)
 	(sheet_instances
 		(path "/"

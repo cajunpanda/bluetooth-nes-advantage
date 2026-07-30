@@ -34,6 +34,10 @@ fp-info-cache
 *.ses
 *.xml
 *.csv
+# Fab BOM/placement CSVs under production/ are part of the deliverable, not a stray
+# export: the JLCPCB placement file carries hand-applied U1 corrections (pad-field
+# centre and a rotation offset) that a plain kicad-cli export does not reproduce.
+!bt-nes-advantage-pcb/production/**/*.csv
 # 3D model exports from KiCad (regenerate from the design, not source of truth)
 *.stl
 *.step

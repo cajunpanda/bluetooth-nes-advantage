@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS
         "app_main.cpp"
+        "board.cpp"
         "nes_controller.cpp"
         "settings.cpp"
         "bt_transport.cpp"

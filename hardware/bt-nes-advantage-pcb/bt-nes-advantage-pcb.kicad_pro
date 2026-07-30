@@ -60,10 +60,10 @@
           "hatch_smoothing_level": 0,
           "hatch_smoothing_value": 0.1,
           "hatch_thickness": 1.0,
-          "min_clearance": 0.5,
+          "min_clearance": 0.25,
           "min_island_area": 10.0,
           "min_thickness": 0.25,
-          "pad_connection": 1,
+          "pad_connection": 2,
           "remove_islands": 0,
           "thermal_relief_gap": 0.5,
           "thermal_relief_spoke_width": 0.5
@@ -77,6 +77,54 @@
         ],
         [
           "items_not_allowed|123931168|70939999|60db256b-5be5-4f8c-94bd-428bbcf64b63|00000000-0000-0000-0000-000000000000",
+          ""
+        ],
+        [
+          "lib_footprint_mismatch|125450000|92600000|81b0d037-23ed-4ac1-96f6-2a0fa9b6f436|00000000-0000-0000-0000-000000000000",
+          ""
+        ],
+        [
+          "lib_footprint_mismatch|192945000|88450000|a14810d1-d541-4aaa-9bba-85a85e6bd30d|00000000-0000-0000-0000-000000000000",
+          ""
+        ],
+        [
+          "silk_edge_clearance|182500000|64200000|febb4132-2f7d-4c59-a434-b13716ef0af5|2b16290c-49eb-4b3a-a741-41e98aca51c2",
+          ""
+        ],
+        [
+          "silk_edge_clearance|187500000|64200000|febb4132-2f7d-4c59-a434-b13716ef0af5|aec4d7d3-6027-42c2-a95e-14a054958783",
+          ""
+        ],
+        [
+          "silk_overlap|184235000|65775000|3b3168b0-b9e1-44df-b08f-0f8d8e2a9745|65be30a7-c48d-44b9-a847-bc4d3008ea6e",
+          ""
+        ],
+        [
+          "silk_overlap|184235000|68235000|3b3168b0-b9e1-44df-b08f-0f8d8e2a9745|eac70ceb-bfc1-48b8-9d84-3cde496abaf0",
+          ""
+        ],
+        [
+          "silk_overlap|184235000|68235000|901bfba0-77ff-42dd-a0e5-1c5b81abdb42|eac70ceb-bfc1-48b8-9d84-3cde496abaf0",
+          ""
+        ],
+        [
+          "silk_overlap|184265000|68235000|65be30a7-c48d-44b9-a847-bc4d3008ea6e|901bfba0-77ff-42dd-a0e5-1c5b81abdb42",
+          ""
+        ],
+        [
+          "silk_overlap|185735000|65775000|b46a12b4-a894-4a10-9b78-abdf2033c174|d3a35714-205a-47b3-8273-6394668c094d",
+          ""
+        ],
+        [
+          "silk_overlap|185765000|68235000|25831241-ee9c-4048-a727-24ea7e286210|b46a12b4-a894-4a10-9b78-abdf2033c174",
+          ""
+        ],
+        [
+          "silk_overlap|185765000|68235000|25831241-ee9c-4048-a727-24ea7e286210|eac70ceb-bfc1-48b8-9d84-3cde496abaf0",
+          ""
+        ],
+        [
+          "silk_overlap|185765000|68235000|d3a35714-205a-47b3-8273-6394668c094d|eac70ceb-bfc1-48b8-9d84-3cde496abaf0",
           ""
         ]
       ],
