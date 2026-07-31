@@ -90,6 +90,7 @@ Intel HEX keeps the gap instead of padding it.
 | `power.{hpp,cpp}` | ULP sleep polling, deep-sleep entry, post-wake RTC-GPIO release |
 | `battery.{hpp,cpp}` | Battery monitor (ADC divider plus TP4056 status) |
 | `board_config.h` | Pin map for the production board (matches [HARDWARE.md](HARDWARE.md)) |
+| `board.{hpp,cpp}` | Board revision probe: resolves the CHG_STAT pin, which moved on PCB 2.1 |
 
 `partitions.csv` defines two 1.75 MB OTA app slots plus `otadata`, so config mode can update
 firmware over the air. `sdkconfig.defaults` holds the project Kconfig; key names can drift between
