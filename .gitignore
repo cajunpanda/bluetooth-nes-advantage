@@ -1,9 +1,10 @@
 # --- Host-side tests ---
 tests/.build/
 
-# --- Design detector hook (shared config is committed; cache and overrides are not) ---
-.impeccable/hook.cache.json
-.impeccable/config.local.json
+# --- Local tooling config, not part of the project ---
+# Editor/agent scratch: keep these on disk, out of the repo.
+.impeccable/
+.claude/
 
 # --- Firmware (ESP-IDF / PlatformIO) ---
 firmware/build/

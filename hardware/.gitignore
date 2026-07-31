@@ -34,10 +34,6 @@ fp-info-cache
 *.ses
 *.xml
 *.csv
-# Fab BOM/placement CSVs under production/ are part of the deliverable, not a stray
-# export: the JLCPCB placement file carries hand-applied U1 corrections (pad-field
-# centre and a rotation offset) that a plain kicad-cli export does not reproduce.
-!bt-nes-advantage-pcb/production/**/*.csv
 # 3D model exports from KiCad (regenerate from the design, not source of truth)
 *.stl
 *.step
@@ -52,10 +48,12 @@ fp-info-cache
 # Editor local history (VS Code "Local History" extension)
 .history/
 
-# Fab / production outputs, uncomment to ignore if you don't version them
-# (leave these tracked unless you change that policy)
-# gerbers/
-# production/
+# Fab / production outputs. Regenerated from the design per order, so they are kept
+# local and not versioned. Note the JLCPCB placement file needs two hand-applied U1
+# corrections that a plain kicad-cli export does not reproduce; they are described in
+# the generated production/jlcpcb/README.md, which is also local.
+gerbers/
+production/
 # *.gbr
 # *.drl
 # *-gerber*.zip
