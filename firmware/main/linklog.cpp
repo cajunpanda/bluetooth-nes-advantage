@@ -159,6 +159,7 @@ const char* ev_name(uint8_t ev) {
     case linklog::EV_SLOW:     return "slow-page";
     case linklog::EV_GIVEUP:   return "give-up";
     case linklog::EV_CONFIG:   return "config";
+    case linklog::EV_SEC_ASK:  return "sec-ask";
     case linklog::EV_ADV:      return "adv";
     case linklog::EV_SEC_REQ:  return "sec-req";
     case linklog::EV_LE_AUTH:  return "le-auth";
@@ -265,7 +266,16 @@ void ev_detail(const Rec& r, char* buf, size_t n) {
     case linklog::EV_DISC:     snprintf(buf, n, "reason=0x%02x%s", r.a,
                                         r.a == 0x08 ? " (link supervision timeout)"
                                       : r.a == 0x13 ? " (remote user ended it)"
-                                      : r.a == 0x06 ? " (PIN or key missing)" : ""); break;
+                                      : r.a == 0x06 ? " (PIN or key missing)"
+                                      // What a Security Mode 4 host must do when it is handed an
+                                      // unencrypted HID channel: see the sec-ask note in
+                                      // bt_pro_btstack.cpp's kick_timer_handler.
+                                      : r.a == 0x05 ? " (authentication failure: the host wanted "
+                                                      "this link encrypted)" : ""); break;
+    case linklog::EV_SEC_ASK:  snprintf(buf, n, "%s", r.a ? "stored key for this peer: asking for "
+                                                            "an authenticated, encrypted link"
+                                                          : "no stored key: pairing from scratch, "
+                                                            "the host drives security"); break;
     case linklog::EV_GIVEUP:   snprintf(buf, n, "pages=%u fast + %u slow", r.a, r.b); break;
     case linklog::EV_ADV:      snprintf(buf, n, "%s", r.a == 0 ? "advertising"
                                                                : "advertising did not start"); break;

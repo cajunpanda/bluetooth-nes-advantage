@@ -45,6 +45,7 @@ enum Ev : uint8_t {
     EV_SLOW,         // fast kick budget spent, falling back to slow re-page
     EV_GIVEUP,       // a = fast pages, b = slow pages
     EV_CONFIG,       // entered config / OTA mode
+    EV_SEC_ASK,      // a = security level asked for on a page we initiate (0 = none, we hold no key)
 
     // BLE. EV_BONDS, EV_DISC and the passkey/OOB/confirmation codes above are shared: the bond
     // count, the HCI disconnect reason and "the host wants input this device does not have" mean

@@ -81,6 +81,7 @@ uint8_t  s_battery = 0x80;         // Pro battery nibble<<4 | charge bits; 0x80 
 bd_addr_t s_local_addr = {0};      // our BD_ADDR, for the device-info subcommand reply
 bd_addr_t s_peer = {0};            // a stored host to actively page on boot (real-Pro reconnect)
 bool s_have_bond = false;          // true means this boot is a reconnect, not a fresh pair
+bool s_acl_up = false;             // an ACL exists, so a kick reuses it instead of paging
 uint16_t s_hid_cid = 0;            // BTstack HID connection id; nonzero means connected
 
 btstack_packet_callback_registration_t s_hci_event_cb;
@@ -482,6 +483,33 @@ void kick_timer_handler(btstack_timer_source_t* ts) {
     ESP_LOGI(TAG, "host has not opened HID, device-initiating (%s attempt %u/%u)",
              s_kick_slow ? "slow" : "fast", n, s_kick_slow ? kSlowMaxAttempts : kKickMaxAttempts);
     linklog::event(linklog::EV_PAGE, n, s_kick_slow ? 1 : 0);
+
+    // A real Pro Controller puts no security requirement on its HID channels, but it does
+    // authenticate and encrypt a reconnect that it initiates: it holds the host's link key, and the
+    // whole flow is device-initiated (the host may be asleep until the controller pages it). Doing
+    // only the first half - the flat LEVEL_0 set up in btstack_task() - opens HID in the clear on a
+    // link the host expects encrypted, and a Security Mode 4 host must then drop the ACL with 0x05
+    // (Core 5.2 Vol 3 Part C 5.2.2.2; BTstack applies the same rule to its own incoming channels in
+    // l2cap_handle_remote_supported_features_received). The consoles hide this by authenticating
+    // first and the receivers by never requiring encryption, so all four bench hosts pass; the
+    // Analogue Pocket dock does neither and failed every reconnect it was ever asked for.
+    //
+    // Raising the level here cannot make us stricter towards a host connecting to *us*:
+    // l2cap_create_channel() reads the global level per outgoing channel, while the registered PSMs
+    // keep the LEVEL_0 snapshot hid_device_init() took.
+    //
+    // The gate is "a reconnect we are paging", not "we hold a key": on a fresh pair the key is
+    // already stored by the time this kick runs (it is armed from SSP complete), and the host is
+    // still driving security on an ACL it opened. Asking for a level on that link re-authenticates
+    // one the host is mid-way through securing - the controller wedge in docs/FIRMWARE.md - and our
+    // own stack then refuses the outgoing channel with L2CAP 0x66. So: only when this boot started
+    // with a bond, only when no ACL exists yet, and only when we really hold that peer's key.
+    link_key_t      key;
+    link_key_type_t key_type;
+    bool reconnect = s_have_bond && !s_acl_up && gap_get_link_key_for_bd_addr(s_peer, key, &key_type);
+    gap_set_security_level(reconnect ? LEVEL_2 : LEVEL_0);
+    linklog::event(linklog::EV_SEC_ASK, reconnect ? 1 : 0);
+
     uint16_t cid = 0;
     uint8_t status = hid_device_connect(s_peer, &cid);
     if (status != ERROR_CODE_SUCCESS) {
@@ -667,6 +695,7 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
         // the first bond instead would page the wrong host.
         linklog::event(linklog::EV_ACL, hci_event_connection_complete_get_status(packet));
         if (hci_event_connection_complete_get_status(packet) == ERROR_CODE_SUCCESS) {
+            s_acl_up = true;
             hci_event_connection_complete_get_bd_addr(packet, s_peer);
             linklog::set_peer(s_peer);
             ESP_LOGI(TAG, "ACL up: %s", bd_addr_to_str(s_peer));
@@ -705,6 +734,7 @@ void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t* packet, uint
         break;
 
     case HCI_EVENT_DISCONNECTION_COMPLETE:
+        s_acl_up = false;
         linklog::event(linklog::EV_DISC, hci_event_disconnection_complete_get_reason(packet));
         break;
 
@@ -894,7 +924,10 @@ void btstack_task(void*) {
     // then have our own outgoing HID connect refused by our own stack (L2CAP 0x66, in
     // l2cap_outgoing_channel_with_insufficient_security). The consoles authenticate and encrypt
     // properly, so they reach LEVEL_2 and hide this entirely.
-    // Must precede hid_device_init(), which snapshots the level when it registers both PSMs.
+    // Must precede hid_device_init(), which snapshots the level when it registers both PSMs - which
+    // is also what keeps this a floor for *incoming* channels only. Outgoing ones read the global
+    // level per channel, and kick_timer_handler raises it for a reconnect we page with a stored key
+    // in hand; see the note there for why a real Pro does both.
     gap_set_security_level(LEVEL_0);
 
     hid_device_init(false, sizeof(kProReportMap), kProReportMap);
