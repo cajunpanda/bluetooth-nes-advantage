@@ -7851,7 +7851,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL21A226MAQNNNE"
+		(property "MPN" "CL21A226KOQNNNE"
 			(at 231.14 93.98 0)
 			(hide yes)
 			(show_name no)
@@ -7870,7 +7870,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C45783" (at 0 0 0)
+		(property "LCSC" "C296720" (at 0 0 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -10349,7 +10349,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL21A226MAQNNNE"
+		(property "MPN" "CL21A226KOQNNNE"
 			(at 139.7 35.56 0)
 			(hide yes)
 			(show_name no)
@@ -10368,7 +10368,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C45783" (at 0 0 0)
+		(property "LCSC" "C296720" (at 0 0 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -10532,7 +10532,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL21A226MAQNNNE"
+		(property "MPN" "CL21A226KOQNNNE"
 			(at 40.64 25.4 0)
 			(hide yes)
 			(show_name no)
@@ -10551,7 +10551,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C45783" (at 0 0 0)
+		(property "LCSC" "C296720" (at 0 0 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11203,7 +11203,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL21A226MAQNNNE"
+		(property "MPN" "CL21A226KOQNNNE"
 			(at 123.19 149.86 0)
 			(hide yes)
 			(show_name no)
@@ -11222,7 +11222,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C45783" (at 0 0 0)
+		(property "LCSC" "C296720" (at 0 0 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12382,7 +12382,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL21A226MAQNNNE"
+		(property "MPN" "CL21A226KOQNNNE"
 			(at 68.58 26.67 0)
 			(hide yes)
 			(show_name no)
@@ -12401,7 +12401,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C45783" (at 0 0 0)
+		(property "LCSC" "C296720" (at 0 0 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12983,7 +12983,7 @@
 				)
 			)
 		)
-		(property "MPN" "CL21A226MAQNNNE"
+		(property "MPN" "CL21A226KOQNNNE"
 			(at 86.36 134.62 0)
 			(hide yes)
 			(show_name no)
@@ -13002,7 +13002,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C45783" (at 0 0 0)
+		(property "LCSC" "C296720" (at 0 0 0)
 			(effects
 				(font
 					(size 1.27 1.27)
