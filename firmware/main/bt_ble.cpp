@@ -194,10 +194,11 @@ esp_ble_adv_params_t s_adv_params = {
 struct BleProfile { const char* name; uint8_t a, b, select, start; };
 const BleProfile kProfiles[] = {
     { "Default (A->1, B->2)",    1, 2, 11, 12 },
-    // Named for the adapter it was built for, unlike Classic's Comfort: the claim here is that
-    // BlueRetro wants B on 4, and it predates any bench note (it has been here since d22b47c), so
-    // it is a device claim carrying less evidence than the mapping beside it. Verify before
-    // leaning on it.
+    // Named for the adapter it was built for, unlike Classic's Comfort, and the name is earned:
+    // BlueRetro over BLE really does want NES B on button 4, confirmed on hardware across repeated
+    // tests (maintainer, 2026-08-01). Recorded because the code carried the mapping since d22b47c
+    // with nothing written down behind it, which is what made it look like the "NSO NES" mistake -
+    // a device-named profile whose claim nobody had checked. This one holds up.
     { "Blue Retro (A->1, B->4)", 1, 4, 11, 12 },
 };
 constexpr uint8_t kNumProfiles = sizeof(kProfiles) / sizeof(kProfiles[0]);
