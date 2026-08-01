@@ -125,20 +125,27 @@ The stick remembers your choices per connection mode.
 
 Button profiles (how NES A/B map onto the host):
 
-| Mode              | Profile 1               | Profile 2                                            |
-| ----------------- | ----------------------- | ---------------------------------------------------- |
-| Switch / Receiver | Literal: A to A, B to B | Comfort: A to B, B to Y                              |
-| BLE               | Default                 | BlueRetro (alternate mapping for BlueRetro adapters) |
+| Mode              | Profile 1               | Profile 2                  |
+| ----------------- | ----------------------- | -------------------------- |
+| Switch / Receiver | Literal: A to A, B to B | Comfort: A to B, B to Y    |
+| BLE               | Default: A to 1, B to 2 | Blue Retro: A to 1, B to 4 |
 
-In Switch / Receiver mode, **Literal** sends the NES A button as the Pro Controller's A and the NES
-B button as its B. **Comfort** shifts both one place around the diamond: pressing NES A sends
-**B**, and pressing NES B sends **Y**. Nothing else moves - Select and Start are always Minus and
-Plus.
+Every profile is named for where it puts the buttons, so the name and the picker agree with what
+the host receives. Select and Start never move, in any profile.
+
+In Switch / Receiver mode the stick is a Pro Controller, so the destinations are its face buttons.
+**Literal** sends NES A as A and NES B as B. **Comfort** shifts both one place around the diamond:
+pressing NES A sends **B**, pressing NES B sends **Y**.
 
 Start with Literal. Switch Online's NES games and the 8BitDo Retro Receiver both read the Pro
 Controller's A and B as the NES A and B, so Literal is what puts NES A on A. Comfort is there for
 games and emulators that expect the two buttons on the lower-left pair instead; if your jump button
 comes out on the wrong button, that is the one to try.
+
+In BLE mode the stick is an ordinary gamepad, so the host sees **numbered** buttons rather than
+named ones, and the profiles say which number each NES button becomes. Which number means what is
+up to the game or emulator; most let you rebind. **Default** is the one to start with. **Blue
+Retro** moves only NES B, from 2 to 4, for BlueRetro adapters over BLE.
 
 Directional modes (where the joystick goes):
 

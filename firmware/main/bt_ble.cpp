@@ -187,10 +187,18 @@ esp_ble_adv_params_t s_adv_params = {
 };
 
 // --- Profiles: NES face buttons -> HID button numbers (1..12) ----------------------------------
+// Names carry their own mapping, as on Classic, so the answer is in the console, the config page
+// picker and `get` at once. Numbers rather than face-button letters because that is what a host
+// actually sees here: this is a generic HID gamepad, with none of the Pro Controller's names.
+// Only B differs between the two, and Select/Start never move, so the name shows just A and B.
 struct BleProfile { const char* name; uint8_t a, b, select, start; };
 const BleProfile kProfiles[] = {
-    { "Default",    1, 2, 11, 12 },
-    { "Blue Retro", 1, 4, 11, 12 },
+    { "Default (A->1, B->2)",    1, 2, 11, 12 },
+    // Named for the adapter it was built for, unlike Classic's Comfort: the claim here is that
+    // BlueRetro wants B on 4, and it predates any bench note (it has been here since d22b47c), so
+    // it is a device claim carrying less evidence than the mapping beside it. Verify before
+    // leaning on it.
+    { "Blue Retro (A->1, B->4)", 1, 4, 11, 12 },
 };
 constexpr uint8_t kNumProfiles = sizeof(kProfiles) / sizeof(kProfiles[0]);
 
