@@ -959,7 +959,7 @@ function fillProfileLists() {
   const profs = (info.profiles && info.profiles[t]) || [];
   const dirs  = (info.dirmodes && info.dirmodes[t]) || [];
   fillSelect($('s_profile'), profs, t === info.transport ? info.profile : 0);
-  // Classic has a single profile (A is A, B is B): nothing to pick, so don't offer a live control.
+  // A transport with one profile has nothing to pick, so don't offer a live control for it.
   $('s_profile').disabled = profs.length < 2;
   fillSelect($('s_dirmode'), dirs,  t === info.transport ? info.dirmode : 0);
   fillChordWindow(t);

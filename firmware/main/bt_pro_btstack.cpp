@@ -115,12 +115,35 @@ constexpr uint32_t kSlowRepageMs    = 30'000;
 constexpr uint32_t kKickGraceMs = 1500;
 
 // --- Profiles: which Pro buttons the NES face buttons produce ----------------------------------
-// One profile, and no remapping table behind it: NSO's NES emulator reads Pro A/B as NES A/B, and
-// the 8BitDo Retro Receiver does the same, so A->A / B->B is correct on both hosts. Anything that
-// moves the face buttons off A/B reaches those hosts as a swap.
+// Both names spell their own mapping out, because the mapping is the whole difference between them
+// and a bare label cannot be checked against what the host actually receives. This replaces an
+// "NSO NES" profile (same table as Comfort) that shipped through 2.2.1: NSO's NES emulator reads
+// Pro A/B as NES A/B, so a name promising NSO delivered those games swapped. Comfort claims
+// nothing about any host - it says where the buttons go and lets the player decide.
 // Select/Start always map to Minus/Plus. Directions are handled by the directional mode, not here.
-const char* kProfileNames[] = { "Literal" };
-constexpr uint8_t kNumProfiles = sizeof(kProfileNames) / sizeof(kProfileNames[0]);
+struct ProProfile {
+    const char* name;
+    // Pro button each NES button activates, addressed by a small enum so the table stays readable.
+    enum Btn { A, B, X, Y } nes_a, nes_b;
+};
+const ProProfile kProfiles[] = {
+    // Unambiguous in the Switch "Test Input Devices" screen, and what NSO and the 8BitDo Retro
+    // Receiver both want: they read Pro A/B as NES A/B.
+    { "Literal (A->A, B->B)", ProProfile::A, ProProfile::B },
+    // The NES pair moved onto the Pro's lower-left diamond buttons.
+    { "Comfort (A->B, B->Y)", ProProfile::B, ProProfile::Y },
+};
+constexpr uint8_t kNumProfiles = sizeof(kProfiles) / sizeof(kProfiles[0]);
+
+void apply_profile_button(ProState& s, ProProfile::Btn which, bool pressed) {
+    if (!pressed) return;
+    switch (which) {
+    case ProProfile::A: s.a = true; break;
+    case ProProfile::B: s.b = true; break;
+    case ProProfile::X: s.x = true; break;
+    case ProProfile::Y: s.y = true; break;
+    }
+}
 
 // --- Directional modes: where the NES d-pad goes ----------------------------------------------
 enum ProDirMode : uint8_t { DIR_DPAD = 0, DIR_STICK = 1, DIR_BOTH = 2 };
@@ -128,12 +151,13 @@ const char* kDirModeNames[] = { "D-Pad", "Left Stick", "Both" };
 constexpr uint8_t kNumDirModes = sizeof(kDirModeNames) / sizeof(kDirModeNames[0]);
 
 ProState map_input(const bt::NesInput& in, uint8_t profile, uint8_t dir_mode) {
-    (void)profile;                     // single profile; the argument stays for bt::Transport
+    if (profile >= kNumProfiles) profile = 0;
     if (dir_mode >= kNumDirModes) dir_mode = DIR_DPAD;
+    const ProProfile& p = kProfiles[profile];
 
     ProState s;
-    s.a = in.a;
-    s.b = in.b;
+    apply_profile_button(s, p.nes_a, in.a);
+    apply_profile_button(s, p.nes_b, in.b);
     s.minus = in.select;
     s.plus  = in.start;
 
@@ -970,7 +994,7 @@ void pro_clear_input() {
 }
 
 uint8_t     pro_num_profiles()          { return kNumProfiles; }
-const char* pro_profile_name(uint8_t i) { return i < kNumProfiles ? kProfileNames[i] : "?"; }
+const char* pro_profile_name(uint8_t i) { return i < kNumProfiles ? kProfiles[i].name : "?"; }
 uint8_t     pro_num_dir_modes()         { return kNumDirModes; }
 const char* pro_dir_mode_name(uint8_t i){ return i < kNumDirModes ? kDirModeNames[i] : "?"; }
 

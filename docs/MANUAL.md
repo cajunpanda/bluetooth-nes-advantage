@@ -49,7 +49,7 @@ first: turbo pulses those buttons, so the hold won't register with it on.
 | Start          | Sleep (power down)                             | LEDs off                      |
 | Select         | Forget the paired host, re-pair from scratch   | Blue blinks                   |
 | Select + Start | Switch mode: Switch/Receiver or BLE (restarts) | Blue blinks                   |
-| A + B + Up     | Cycle button profile (BLE mode only)           | Red blinks the profile number |
+| A + B + Up     | Cycle button profile                           | Red blinks the profile number |
 | A + B + Down   | Cycle directional mode                         | Red blinks the mode number    |
 | A + B + Select | Enter config / firmware-update mode (restarts) | Blue blinks 3 times           |
 
@@ -127,12 +127,18 @@ Button profiles (how NES A/B map onto the host):
 
 | Mode              | Profile 1               | Profile 2                                            |
 | ----------------- | ----------------------- | ---------------------------------------------------- |
-| Switch / Receiver | Literal: A to A, B to B | none                                                 |
+| Switch / Receiver | Literal: A to A, B to B | Comfort: A to B, B to Y                              |
 | BLE               | Default                 | BlueRetro (alternate mapping for BlueRetro adapters) |
 
-In Switch / Receiver mode there is nothing to choose: A is A and B is B. Switch Online's NES games
-and the 8BitDo Retro Receiver both read the Pro Controller's A and B as the NES A and B, so the
-literal mapping is already the right one.
+In Switch / Receiver mode, **Literal** sends the NES A button as the Pro Controller's A and the NES
+B button as its B. **Comfort** shifts both one place around the diamond: pressing NES A sends
+**B**, and pressing NES B sends **Y**. Nothing else moves - Select and Start are always Minus and
+Plus.
+
+Start with Literal. Switch Online's NES games and the 8BitDo Retro Receiver both read the Pro
+Controller's A and B as the NES A and B, so Literal is what puts NES A on A. Comfort is there for
+games and emulators that expect the two buttons on the lower-left pair instead; if your jump button
+comes out on the wrong button, that is the one to try.
 
 Directional modes (where the joystick goes):
 
